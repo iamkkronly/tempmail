@@ -1,0 +1,5 @@
+{
+  "name": "GhostMail AI",
+  "description": "Next-generation anonymous temporary email service powered by Gemini. Features real-time inbox, infinite address generation, and AI-driven email analysis for safety and summarization.",
+  "requestFramePermissions": []
+}
