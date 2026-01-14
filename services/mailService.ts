@@ -2,18 +2,30 @@ import { MailMessage, FullMailMessage, Mailbox } from '../types';
 
 const API_BASE = 'https://www.1secmail.com/api/v1/';
 
+// Helper to bypass CORS using a proxy
+const fetchWithCORS = async (url: string) => {
+  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+  const response = await fetch(proxyUrl);
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.status}`);
+  }
+  return response.json();
+};
+
 export const generateRandomAddress = async (): Promise<Mailbox> => {
   try {
-    const response = await fetch(`${API_BASE}?action=genRandomMailbox&count=1`);
-    const data = await response.json();
-    const address = data[0];
-    const [login, domain] = address.split('@');
-    return { login, domain, address };
+    const data = await fetchWithCORS(`${API_BASE}?action=genRandomMailbox&count=1`);
+    if (Array.isArray(data) && data.length > 0) {
+        const address = data[0];
+        const [login, domain] = address.split('@');
+        return { login, domain, address };
+    }
+    throw new Error("Invalid address format received");
   } catch (error) {
-    console.error("Failed to generate mailbox", error);
-    // Fallback if API fails (simulated)
-    const fallbackLogin = `user_${Math.floor(Math.random() * 10000)}`;
-    const fallbackDomain = 'example.com';
+    console.error("Failed to generate mailbox, using fallback", error);
+    // Fallback if API fails completely
+    const fallbackLogin = `ghost_${Math.floor(Math.random() * 100000)}`;
+    const fallbackDomain = '1secmail.com';
     return {
       login: fallbackLogin,
       domain: fallbackDomain,
@@ -24,9 +36,7 @@ export const generateRandomAddress = async (): Promise<Mailbox> => {
 
 export const checkInbox = async (login: string, domain: string): Promise<MailMessage[]> => {
   try {
-    const response = await fetch(`${API_BASE}?action=getMessages&login=${login}&domain=${domain}`);
-    if (!response.ok) return [];
-    const data = await response.json();
+    const data = await fetchWithCORS(`${API_BASE}?action=getMessages&login=${login}&domain=${domain}`);
     return data as MailMessage[];
   } catch (error) {
     console.error("Failed to fetch inbox", error);
@@ -36,9 +46,7 @@ export const checkInbox = async (login: string, domain: string): Promise<MailMes
 
 export const getMessageContent = async (login: string, domain: string, id: number): Promise<FullMailMessage | null> => {
   try {
-    const response = await fetch(`${API_BASE}?action=readMessage&login=${login}&domain=${domain}&id=${id}`);
-    if (!response.ok) return null;
-    const data = await response.json();
+    const data = await fetchWithCORS(`${API_BASE}?action=readMessage&login=${login}&domain=${domain}&id=${id}`);
     return data as FullMailMessage;
   } catch (error) {
     console.error("Failed to fetch message content", error);
