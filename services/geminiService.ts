@@ -1,9 +1,11 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AIAnalysisResult, FullMailMessage } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Helper to lazy load AI to prevent top-level crashes
+const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const analyzeEmail = async (email: FullMailMessage): Promise<AIAnalysisResult> => {
+  const ai = getAI();
   const model = "gemini-3-flash-preview";
   
   const prompt = `
@@ -50,7 +52,7 @@ export const analyzeEmail = async (email: FullMailMessage): Promise<AIAnalysisRe
     console.error("Gemini analysis failed:", error);
     return {
       riskLevel: 'MEDIUM',
-      summary: 'Analysis failed due to an error.',
+      summary: 'Analysis failed due to an error. Please check your API key.',
       actionableItems: [],
       phishingScore: 50
     };
@@ -58,6 +60,7 @@ export const analyzeEmail = async (email: FullMailMessage): Promise<AIAnalysisRe
 };
 
 export const draftReply = async (email: FullMailMessage, tone: string): Promise<string> => {
+  const ai = getAI();
   const model = "gemini-3-flash-preview";
   const prompt = `
     Draft a ${tone} reply to the following email:
@@ -77,6 +80,6 @@ export const draftReply = async (email: FullMailMessage, tone: string): Promise<
     return response.text || "Could not generate reply.";
   } catch (e) {
     console.error(e);
-    return "Error generating reply.";
+    return "Error generating reply. Please check your API key.";
   }
 };
