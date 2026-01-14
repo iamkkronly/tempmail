@@ -1,20 +1,9 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AIAnalysisResult, FullMailMessage } from '../types';
 
-const apiKey = process.env.API_KEY || '';
-const ai = new GoogleGenAI({ apiKey });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const analyzeEmail = async (email: FullMailMessage): Promise<AIAnalysisResult> => {
-  if (!apiKey) {
-    console.warn("No API Key found for Gemini");
-    return {
-      riskLevel: 'LOW',
-      summary: 'API Key missing. Cannot analyze.',
-      actionableItems: [],
-      phishingScore: 0
-    };
-  }
-
   const model = "gemini-3-flash-preview";
   
   const prompt = `
@@ -69,8 +58,6 @@ export const analyzeEmail = async (email: FullMailMessage): Promise<AIAnalysisRe
 };
 
 export const draftReply = async (email: FullMailMessage, tone: string): Promise<string> => {
-  if (!apiKey) return "API Key missing.";
-
   const model = "gemini-3-flash-preview";
   const prompt = `
     Draft a ${tone} reply to the following email:
