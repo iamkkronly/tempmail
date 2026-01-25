@@ -35,3 +35,5 @@ export interface AIAnalysisResult {
   actionableItems: string[];
   phishingScore: number;
 }
+
+export type ThemeOption = 'dark' | 'light' | 'blue';

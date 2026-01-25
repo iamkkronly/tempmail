@@ -1,12 +1,59 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Mailbox, MailMessage, AppView, AccountDetails } from './types';
+import { Mailbox, MailMessage, AppView, AccountDetails, ThemeOption } from './types';
 import { createAccount, getMessages, deleteMessage, markMessageSeen, getAccountDetails } from './services/mailService';
 import AddressBar from './components/AddressBar';
 import InboxList from './components/InboxList';
 import EmailView from './components/EmailView';
-import { Ghost, Shield, Zap, Lock, Bell, CheckCircle, Database, Keyboard } from 'lucide-react';
+import { Ghost, Shield, Zap, Lock, Bell, CheckCircle, Database, Keyboard, Palette, Moon, Sun, Droplet } from 'lucide-react';
 
 const STORAGE_KEY = 'ghostmail_account_v1';
+const THEME_KEY = 'ghostmail_theme_v1';
+
+// RGB values for themes
+const THEMES: Record<ThemeOption, Record<string, string>> = {
+  dark: {
+    '--slate-50': '248 250 252',
+    '--slate-100': '241 245 249',
+    '--slate-200': '226 232 240',
+    '--slate-300': '203 213 225',
+    '--slate-400': '148 163 184',
+    '--slate-500': '100 116 139',
+    '--slate-600': '71 85 105',
+    '--slate-700': '51 65 85',
+    '--slate-800': '30 41 59',
+    '--slate-850': '21 31 50',
+    '--slate-900': '15 23 42',
+    '--slate-950': '2 6 23',
+  },
+  light: {
+    '--slate-50': '2 6 23',         // Inverted: Darkest
+    '--slate-100': '15 23 42',
+    '--slate-200': '30 41 59',
+    '--slate-300': '71 85 105',     // Text muted becomes dark grey
+    '--slate-400': '100 116 139',
+    '--slate-500': '148 163 184',
+    '--slate-600': '203 213 225',
+    '--slate-700': '226 232 240',   // Borders
+    '--slate-800': '241 245 249',   // Elements BG
+    '--slate-850': '255 255 255',   // Highlight BG
+    '--slate-900': '255 255 255',   // Panel BG
+    '--slate-950': '248 250 252',   // App BG
+  },
+  blue: {
+    '--slate-50': '230 240 255',
+    '--slate-100': '200 220 250',
+    '--slate-200': '180 200 240',
+    '--slate-300': '140 170 220',
+    '--slate-400': '100 130 190',
+    '--slate-500': '60 90 150',
+    '--slate-600': '40 70 120',
+    '--slate-700': '30 50 90',
+    '--slate-800': '20 35 70',
+    '--slate-850': '15 25 55',
+    '--slate-900': '10 18 40',
+    '--slate-950': '5 10 25',
+  }
+};
 
 const App: React.FC = () => {
   const [mailbox, setMailbox] = useState<Mailbox | null>(null);
@@ -17,6 +64,8 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [inboxLoading, setInboxLoading] = useState(false);
   const [toast, setToast] = useState<{message: string, type: 'success' | 'info'} | null>(null);
+  const [theme, setTheme] = useState<ThemeOption>('dark');
+  const [showThemeMenu, setShowThemeMenu] = useState(false);
 
   // Show Toast
   const showToast = useCallback((message: string, type: 'success' | 'info' = 'success') => {
@@ -30,6 +79,24 @@ const App: React.FC = () => {
       Notification.requestPermission();
     }
   }, []);
+
+  // Theme Management
+  useEffect(() => {
+    const savedTheme = localStorage.getItem(THEME_KEY) as ThemeOption;
+    if (savedTheme && THEMES[savedTheme]) {
+      setTheme(savedTheme);
+    }
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const colors = THEMES[theme];
+    Object.entries(colors).forEach(([key, value]) => {
+      // Fix: Cast value to string to resolve 'unknown' type error
+      root.style.setProperty(key, value as string);
+    });
+    localStorage.setItem(THEME_KEY, theme);
+  }, [theme]);
 
   // Keyboard Shortcuts
   useEffect(() => {
@@ -168,7 +235,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-100 font-sans selection:bg-brand-500/30 overflow-x-hidden relative flex flex-col">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-brand-500/30 overflow-x-hidden relative flex flex-col transition-colors duration-500">
       
       {/* Background Ambience */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
@@ -187,25 +254,71 @@ const App: React.FC = () => {
       )}
 
       {/* Navbar */}
-      <nav className="border-b border-slate-800/60 bg-slate-900/70 backdrop-blur-md sticky top-0 z-50">
+      <nav className="border-b border-slate-800/60 bg-slate-900/70 backdrop-blur-md sticky top-0 z-50 transition-colors duration-500">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3 cursor-pointer group" onClick={() => window.location.reload()}>
             <div className="bg-gradient-to-tr from-brand-600 to-indigo-600 p-2 rounded-lg shadow-lg shadow-brand-500/20 group-hover:shadow-brand-500/40 transition-shadow">
               <Ghost className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-slate-400">
+            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-100 via-slate-200 to-slate-400">
               GhostMail AI
             </span>
           </div>
-          <div className="hidden md:flex items-center space-x-8 text-sm font-medium text-slate-400">
-            <div className="flex items-center space-x-2 hover:text-emerald-400 transition-colors cursor-help" title="End-to-end encryption compatible">
-               <Shield className="w-4 h-4" /> <span>Secure</span>
+          
+          <div className="flex items-center gap-4">
+             {/* Desktop Nav Items */}
+            <div className="hidden md:flex items-center space-x-8 text-sm font-medium text-slate-400 mr-4">
+              <div className="flex items-center space-x-2 hover:text-emerald-400 transition-colors cursor-help" title="End-to-end encryption compatible">
+                <Shield className="w-4 h-4" /> <span>Secure</span>
+              </div>
+              <div className="flex items-center space-x-2 hover:text-brand-400 transition-colors cursor-help" title="Instant delivery">
+                <Zap className="w-4 h-4" /> <span>Real-time</span>
+              </div>
+              <div className="flex items-center space-x-2 hover:text-purple-400 transition-colors cursor-help" title="No logs kept">
+                <Lock className="w-4 h-4" /> <span>Anonymous</span>
+              </div>
             </div>
-             <div className="flex items-center space-x-2 hover:text-brand-400 transition-colors cursor-help" title="Instant delivery">
-               <Zap className="w-4 h-4" /> <span>Real-time</span>
-            </div>
-            <div className="flex items-center space-x-2 hover:text-purple-400 transition-colors cursor-help" title="No logs kept">
-               <Lock className="w-4 h-4" /> <span>Anonymous</span>
+
+            {/* Theme Toggle */}
+            <div className="relative">
+              <button 
+                onClick={() => setShowThemeMenu(!showThemeMenu)}
+                className="p-2 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors"
+                title="Change Theme"
+              >
+                <Palette className="w-5 h-5" />
+              </button>
+              
+              {showThemeMenu && (
+                <div className="absolute right-0 top-full mt-2 w-40 bg-slate-900 border border-slate-800 rounded-xl shadow-xl overflow-hidden z-50">
+                  <div className="p-1 space-y-1">
+                    <button 
+                      onClick={() => { setTheme('dark'); setShowThemeMenu(false); }}
+                      className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors ${theme === 'dark' ? 'bg-slate-800 text-brand-400' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}`}
+                    >
+                      <Moon className="w-4 h-4" />
+                      <span>Dark</span>
+                    </button>
+                    <button 
+                      onClick={() => { setTheme('light'); setShowThemeMenu(false); }}
+                      className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors ${theme === 'light' ? 'bg-slate-800 text-brand-400' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}`}
+                    >
+                      <Sun className="w-4 h-4" />
+                      <span>Light</span>
+                    </button>
+                    <button 
+                      onClick={() => { setTheme('blue'); setShowThemeMenu(false); }}
+                      className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors ${theme === 'blue' ? 'bg-slate-800 text-brand-400' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}`}
+                    >
+                      <Droplet className="w-4 h-4" />
+                      <span>Blue</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+              {showThemeMenu && (
+                <div className="fixed inset-0 z-40" onClick={() => setShowThemeMenu(false)}></div>
+              )}
             </div>
           </div>
         </div>
@@ -245,7 +358,7 @@ const App: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800/50 py-8 mt-auto text-slate-600 text-sm relative z-10 bg-slate-900/30">
+      <footer className="border-t border-slate-800/50 py-8 mt-auto text-slate-600 text-sm relative z-10 bg-slate-900/30 transition-colors duration-500">
          <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="text-center md:text-left">
               <p className="font-medium text-slate-500">© {new Date().getFullYear()} GhostMail AI.</p>

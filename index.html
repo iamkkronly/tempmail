@@ -8,6 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             fontFamily: {
@@ -15,9 +16,18 @@
             },
             colors: {
               slate: {
-                850: '#151F32',
-                900: '#0F172A',
-                950: '#020617',
+                50: 'rgb(var(--slate-50) / <alpha-value>)',
+                100: 'rgb(var(--slate-100) / <alpha-value>)',
+                200: 'rgb(var(--slate-200) / <alpha-value>)',
+                300: 'rgb(var(--slate-300) / <alpha-value>)',
+                400: 'rgb(var(--slate-400) / <alpha-value>)',
+                500: 'rgb(var(--slate-500) / <alpha-value>)',
+                600: 'rgb(var(--slate-600) / <alpha-value>)',
+                700: 'rgb(var(--slate-700) / <alpha-value>)',
+                800: 'rgb(var(--slate-800) / <alpha-value>)',
+                850: 'rgb(var(--slate-850) / <alpha-value>)',
+                900: 'rgb(var(--slate-900) / <alpha-value>)',
+                950: 'rgb(var(--slate-950) / <alpha-value>)',
               },
               brand: {
                 400: '#818CF8',
@@ -36,9 +46,24 @@
       }
     </script>
     <style>
+      :root {
+        /* Default Dark Theme (Slate) */
+        --slate-50: 248 250 252;
+        --slate-100: 241 245 249;
+        --slate-200: 226 232 240;
+        --slate-300: 203 213 225;
+        --slate-400: 148 163 184;
+        --slate-500: 100 116 139;
+        --slate-600: 71 85 105;
+        --slate-700: 51 65 85;
+        --slate-800: 30 41 59;
+        --slate-850: 21 31 50; 
+        --slate-900: 15 23 42;
+        --slate-950: 2 6 23;
+      }
       body {
-        background-color: #020617;
-        color: #f8fafc;
+        background-color: rgb(var(--slate-950));
+        color: rgb(var(--slate-100));
         overflow-x: hidden;
       }
       /* Custom Scrollbar */
@@ -46,14 +71,14 @@
         width: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #0f172a; 
+        background: rgb(var(--slate-900)); 
       }
       ::-webkit-scrollbar-thumb {
-        background: #334155; 
+        background: rgb(var(--slate-700)); 
         border-radius: 4px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #475569; 
+        background: rgb(var(--slate-600)); 
       }
     </style>
   <script type="importmap">
