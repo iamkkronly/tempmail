@@ -6,6 +6,8 @@ import InboxList from './components/InboxList';
 import EmailView from './components/EmailView';
 import { Ghost, Shield, Zap } from 'lucide-react';
 
+const STORAGE_KEY = 'ghostmail_account_v1';
+
 const App: React.FC = () => {
   const [mailbox, setMailbox] = useState<Mailbox | null>(null);
   const [messages, setMessages] = useState<MailMessage[]>([]);
@@ -14,32 +16,51 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [inboxLoading, setInboxLoading] = useState(false);
 
-  // Initialize Mailbox
-  const initMailbox = useCallback(async () => {
+  // Generate a brand new account
+  const generateNewIdentity = useCallback(async () => {
     setLoading(true);
     try {
       const box = await createAccount();
       setMailbox(box);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(box));
       setMessages([]);
       setView(AppView.INBOX);
+      setSelectedEmailId(null);
     } catch (e) {
-      console.error("Failed to init mailbox", e);
+      console.error("Failed to create mailbox", e);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Initial load
+  // Initial load: Restore from storage or create new
   useEffect(() => {
-    initMailbox();
-  }, [initMailbox]);
+    const storedAccount = localStorage.getItem(STORAGE_KEY);
+    if (storedAccount) {
+      try {
+        const parsedBox = JSON.parse(storedAccount);
+        if (parsedBox && parsedBox.address && parsedBox.token) {
+          setMailbox(parsedBox);
+          return;
+        }
+      } catch (e) {
+        console.error("Failed to restore session", e);
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    }
+    // Only create new if restoration failed or didn't exist
+    generateNewIdentity();
+  }, [generateNewIdentity]);
 
   // Polling for emails
   useEffect(() => {
     if (!mailbox) return;
 
     const fetchMessages = async () => {
-      setInboxLoading(true);
+      // Don't show loading spinner on background polls to keep UI stable
+      // Only show if we have 0 messages (initial fetch for this session)
+      if (messages.length === 0) setInboxLoading(true);
+      
       const msgs = await getMessages(mailbox.token);
       setMessages(msgs);
       setInboxLoading(false);
@@ -49,7 +70,7 @@ const App: React.FC = () => {
     const interval = setInterval(fetchMessages, 5000); // Poll every 5s
 
     return () => clearInterval(interval);
-  }, [mailbox]);
+  }, [mailbox]); // Remove messages dependency to avoid loops, mailbox is stable enough
 
   const handleSelectEmail = (id: string) => {
     setSelectedEmailId(id);
@@ -92,7 +113,7 @@ const App: React.FC = () => {
         <section>
           <AddressBar 
             mailbox={mailbox} 
-            onRefresh={initMailbox} 
+            onRefresh={generateNewIdentity} 
             loading={loading} 
           />
         </section>
