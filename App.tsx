@@ -8,6 +8,7 @@ import { Ghost, Shield, Zap, Lock, Bell, CheckCircle, Database, Keyboard, Palett
 
 const STORAGE_KEY = 'ghostmail_account_v1';
 const THEME_KEY = 'ghostmail_theme_v1';
+const AUTO_DELETE_DAYS = 7;
 
 // RGB values for themes
 const THEMES: Record<ThemeOption, Record<string, string>> = {
@@ -162,24 +163,51 @@ const App: React.FC = () => {
 
     const fetchData = async () => {
       // 1. Get Messages
-      const msgs = await getMessages(mailbox.token);
+      const rawMsgs = await getMessages(mailbox.token);
+      
+      // Auto-delete logic
+      const now = Date.now();
+      const retentionLimit = now - (AUTO_DELETE_DAYS * 24 * 60 * 60 * 1000);
+      
+      const activeMsgs: MailMessage[] = [];
+      const expiredMsgs: MailMessage[] = [];
+
+      rawMsgs.forEach(msg => {
+        const msgTime = new Date(msg.date).getTime();
+        if (msgTime < retentionLimit) {
+            expiredMsgs.push(msg);
+        } else {
+            activeMsgs.push(msg);
+        }
+      });
+
+      // Cleanup expired in background
+      if (expiredMsgs.length > 0) {
+        Promise.all(expiredMsgs.map(m => deleteMessage(mailbox.token, m.id)))
+            .then(() => console.log(`Cleaned ${expiredMsgs.length} expired messages`))
+            .catch(e => console.error("Auto-delete failed", e));
+      }
       
       setMessages(prev => {
-        // Detect new messages
-        if (msgs.length > prev.length && prev.length > 0) {
-           const newCount = msgs.length - prev.length;
-           const latest = msgs[0];
-           showToast(`${newCount} new message${newCount > 1 ? 's' : ''} received`, 'info');
+        // Robust new message detection (ID based)
+        // Check if any message in activeMsgs is NOT in prev (and prev is not empty to avoid initial load spam)
+        if (prev.length > 0) {
+           const prevIds = new Set(prev.map(m => m.id));
+           const newMsgs = activeMsgs.filter(m => !prevIds.has(m.id));
            
-           // Browser Notification
-           if (document.hidden && Notification.permission === 'granted') {
-             new Notification('New GhostMail', {
-               body: `From: ${latest.from}\n${latest.subject}`,
-               icon: '/vite.svg' // Fallback icon
-             });
+           if (newMsgs.length > 0) {
+             const latest = newMsgs[0];
+             showToast(`${newMsgs.length} new message${newMsgs.length > 1 ? 's' : ''}`, 'info');
+             
+             if (document.hidden && Notification.permission === 'granted') {
+               new Notification('New GhostMail', {
+                 body: `From: ${latest.from}\n${latest.subject}`,
+                 icon: '/vite.svg' 
+               });
+             }
            }
         }
-        return msgs;
+        return activeMsgs;
       });
 
       // 2. Get Account Usage (Quota)
@@ -363,7 +391,7 @@ const App: React.FC = () => {
          <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="text-center md:text-left">
               <p className="font-medium text-slate-500">© {new Date().getFullYear()} GhostMail AI.</p>
-              <p className="text-xs mt-1 text-slate-600">Anonymous & Encrypted Temporary Email.</p>
+              <p className="text-xs mt-1 text-slate-600">Anonymous & Encrypted Temporary Email. Messages auto-delete after {AUTO_DELETE_DAYS} days.</p>
             </div>
             
             <div className="flex items-center gap-6">
