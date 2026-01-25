@@ -141,71 +141,73 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
       {/* Main Email Content */}
       <div className="flex-1 w-full max-w-full bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl flex flex-col h-auto min-h-[600px]">
         
-        {/* Toolbar */}
-        <div className="bg-slate-900/95 backdrop-blur border-b border-slate-800 p-4 flex items-center justify-between sticky top-0 z-20">
-          <button 
-            onClick={onBack}
-            className="flex items-center space-x-2 text-slate-400 hover:text-white transition-colors hover:bg-slate-800 px-3 py-2 rounded-lg group flex-shrink-0"
-          >
-            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            <span className="font-medium hidden xs:inline">Inbox</span>
-          </button>
-          
-          <div className="flex space-x-1 flex-shrink-0">
-             <button 
-              onClick={handleSpeak}
-              className={`p-2 rounded-lg transition-colors ${isSpeaking ? 'text-brand-400 bg-brand-500/10 animate-pulse' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`} 
-              title={isSpeaking ? "Stop Reading" : "Read Aloud"}
-            >
-              {isSpeaking ? <StopCircle className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-            </button>
-             <button 
-              onClick={handlePrint}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors hidden sm:block" 
-              title="Print Email"
-            >
-              <Printer className="w-4 h-4" />
-            </button>
-            <div className="w-px h-6 bg-slate-700 mx-2 self-center hidden sm:block"></div>
+        {/* Toolbar - Responsive horizontal scroll */}
+        <div className="bg-slate-900/95 backdrop-blur border-b border-slate-800 p-4 sticky top-0 z-20">
+          <div className="flex items-center justify-between gap-4 overflow-x-auto no-scrollbar pb-1">
             <button 
-              onClick={() => setViewMode(viewMode === 'visual' ? 'source' : 'visual')}
-              className={`p-2 rounded-lg transition-colors flex items-center gap-2 text-xs font-medium px-3 ${viewMode === 'source' ? 'bg-brand-500/10 text-brand-400' : 'text-slate-400 hover:bg-slate-800'}`}
-              title="Toggle Source View"
+              onClick={onBack}
+              className="flex items-center space-x-2 text-slate-400 hover:text-white transition-colors hover:bg-slate-800 px-3 py-2 rounded-lg group flex-shrink-0"
             >
-              {viewMode === 'visual' ? <Code className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              <span className="hidden sm:inline">{viewMode === 'visual' ? 'View Source' : 'Visual Preview'}</span>
+              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+              <span className="font-medium hidden xs:inline">Inbox</span>
             </button>
-             <div className="w-px h-6 bg-slate-700 mx-2 self-center"></div>
-            <button 
-              onClick={handleDownload}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors" 
-              title="Download HTML"
-            >
-              <Download className="w-4 h-4" />
-            </button>
-            <button 
-              onClick={handleDelete}
-              disabled={isDeleting}
-              className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50" 
-              title="Delete Email"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+            
+            <div className="flex space-x-1 flex-shrink-0">
+              <button 
+                onClick={handleSpeak}
+                className={`p-2 rounded-lg transition-colors ${isSpeaking ? 'text-brand-400 bg-brand-500/10 animate-pulse' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`} 
+                title={isSpeaking ? "Stop Reading" : "Read Aloud"}
+              >
+                {isSpeaking ? <StopCircle className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              </button>
+              <button 
+                onClick={handlePrint}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors hidden sm:block" 
+                title="Print Email"
+              >
+                <Printer className="w-4 h-4" />
+              </button>
+              <div className="w-px h-6 bg-slate-700 mx-2 self-center hidden sm:block"></div>
+              <button 
+                onClick={() => setViewMode(viewMode === 'visual' ? 'source' : 'visual')}
+                className={`p-2 rounded-lg transition-colors flex items-center gap-2 text-xs font-medium px-3 ${viewMode === 'source' ? 'bg-brand-500/10 text-brand-400' : 'text-slate-400 hover:bg-slate-800'}`}
+                title="Toggle Source View"
+              >
+                {viewMode === 'visual' ? <Code className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                <span className="hidden sm:inline whitespace-nowrap">{viewMode === 'visual' ? 'View Source' : 'Visual Preview'}</span>
+              </button>
+              <div className="w-px h-6 bg-slate-700 mx-2 self-center"></div>
+              <button 
+                onClick={handleDownload}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors" 
+                title="Download HTML"
+              >
+                <Download className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50" 
+                title="Delete Email"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Email Header Info */}
         <div className="p-4 md:p-6 bg-gradient-to-b from-slate-800/50 to-transparent">
-          <h1 className="text-xl md:text-2xl font-bold text-white leading-tight mb-6 break-words">{email.subject || '(No Subject)'}</h1>
+          <h1 className="text-lg md:text-2xl font-bold text-white leading-tight mb-4 md:mb-6 break-words">{email.subject || '(No Subject)'}</h1>
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4 min-w-0">
-              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-tr from-brand-600 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-lg">
+            <div className="flex items-center space-x-3 md:space-x-4 min-w-0 flex-1">
+              <div className="flex-shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-tr from-brand-600 to-purple-600 flex items-center justify-center text-white font-bold text-base md:text-lg shadow-lg">
                  {email.from.charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-white font-semibold text-base truncate">{email.from}</p>
-                <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                   <p className="text-slate-400 text-xs font-mono bg-slate-800/80 px-2 py-0.5 rounded truncate max-w-full">To: {mailbox.address}</p>
+                <p className="text-white font-semibold text-sm md:text-base truncate">{email.from}</p>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mt-0.5">
+                   <p className="text-slate-400 text-xs font-mono bg-slate-800/80 px-2 py-0.5 rounded truncate w-fit max-w-full">To: {mailbox.address}</p>
                    <span className="text-slate-600 text-xs hidden sm:inline">•</span>
                    <p className="text-slate-500 text-xs whitespace-nowrap">{new Date(email.date).toLocaleString()}</p>
                 </div>

@@ -273,9 +273,9 @@ const App: React.FC = () => {
 
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed top-24 right-4 z-[100] animate-fade-in-left">
+        <div className="fixed top-24 right-4 z-[100] animate-fade-in-left max-w-[90vw]">
            <div className="bg-slate-800/90 backdrop-blur border border-slate-700 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3">
-              {toast.type === 'success' ? <CheckCircle className="w-5 h-5 text-emerald-400" /> : <Bell className="w-5 h-5 text-brand-400" />}
+              {toast.type === 'success' ? <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0" /> : <Bell className="w-5 h-5 text-brand-400 flex-shrink-0" />}
               <span className="text-sm font-medium">{toast.message}</span>
            </div>
         </div>
@@ -283,17 +283,17 @@ const App: React.FC = () => {
 
       {/* Navbar */}
       <nav className="border-b border-slate-800/60 bg-slate-900/70 backdrop-blur-md sticky top-0 z-50 transition-colors duration-500">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3 cursor-pointer group" onClick={() => window.location.reload()}>
-            <div className="bg-gradient-to-tr from-brand-600 to-indigo-600 p-2 rounded-lg shadow-lg shadow-brand-500/20 group-hover:shadow-brand-500/40 transition-shadow">
+        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
+          <div className="flex items-center space-x-3 cursor-pointer group min-w-0" onClick={() => window.location.reload()}>
+            <div className="bg-gradient-to-tr from-brand-600 to-indigo-600 p-2 rounded-lg shadow-lg shadow-brand-500/20 group-hover:shadow-brand-500/40 transition-shadow flex-shrink-0">
               <Ghost className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-100 via-slate-200 to-slate-400">
+            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-100 via-slate-200 to-slate-400 truncate">
               GhostMail AI
             </span>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
              {/* Desktop Nav Items */}
             <div className="hidden md:flex items-center space-x-8 text-sm font-medium text-slate-400 mr-4">
               <div className="flex items-center space-x-2 hover:text-emerald-400 transition-colors cursor-help" title="End-to-end encryption compatible">

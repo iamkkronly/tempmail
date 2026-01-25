@@ -110,7 +110,7 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading }) =>
           key={msg.id}
           onClick={() => onSelect(msg.id)}
           className={`
-            group relative overflow-hidden rounded-xl p-4 cursor-pointer transition-all duration-300 
+            group relative overflow-hidden rounded-xl p-3 sm:p-4 cursor-pointer transition-all duration-300 
             border hover:-translate-y-1 hover:shadow-xl
             ${!msg.seen 
               ? 'bg-gradient-to-r from-slate-800/90 to-slate-900/90 border-brand-500/30 shadow-lg shadow-brand-900/10' 
@@ -123,10 +123,10 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading }) =>
             <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-400 to-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
           )}
 
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center space-x-4 overflow-hidden flex-1">
+          <div className="flex items-start justify-between gap-3 sm:gap-4">
+            <div className="flex items-center space-x-3 sm:space-x-4 overflow-hidden flex-1">
               <div className={`
-                flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-inner transition-transform group-hover:scale-105
+                flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-white font-bold text-base sm:text-lg shadow-inner transition-transform group-hover:scale-105
                 ${!msg.seen 
                   ? 'bg-gradient-to-br from-brand-600 to-indigo-600 ring-2 ring-brand-500/20' 
                   : 'bg-slate-800 text-slate-400'
@@ -153,12 +153,12 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading }) =>
               </div>
             </div>
             
-            <div className="flex flex-col items-end space-y-3 ml-2">
+            <div className="flex flex-col items-end space-y-3 ml-1 sm:ml-2">
                <span className={`text-[10px] sm:text-xs flex items-center gap-1 whitespace-nowrap ${!msg.seen ? 'text-brand-300 font-medium' : 'text-slate-600'}`}>
                   <Clock className="w-3 h-3" />
                   {new Date(msg.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                </span>
-               <div className="w-8 h-8 rounded-full bg-slate-800/0 group-hover:bg-brand-500/10 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 -mr-2 transform translate-x-2 group-hover:translate-x-0">
+               <div className="w-8 h-8 rounded-full bg-slate-800/0 group-hover:bg-brand-500/10 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 -mr-2 transform translate-x-2 group-hover:translate-x-0 hidden sm:flex">
                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-brand-400" />
                </div>
             </div>
