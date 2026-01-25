@@ -333,6 +333,7 @@ const App: React.FC = () => {
             onRefresh={generateNewIdentity} 
             loading={loading}
             onCopy={() => showToast('Address copied to clipboard')}
+            accountInfo={accountInfo}
           />
         </section>
 

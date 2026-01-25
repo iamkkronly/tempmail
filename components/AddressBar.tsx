@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Copy, RefreshCw, Check, Sparkles, QrCode, X } from 'lucide-react';
-import { Mailbox } from '../types';
+import { Copy, RefreshCw, Check, Sparkles, QrCode, Database } from 'lucide-react';
+import { Mailbox, AccountDetails } from '../types';
 
 interface AddressBarProps {
   mailbox: Mailbox | null;
   onRefresh: () => void;
   loading: boolean;
   onCopy: () => void;
+  accountInfo: AccountDetails | null;
 }
 
-const AddressBar: React.FC<AddressBarProps> = ({ mailbox, onRefresh, loading, onCopy }) => {
+const AddressBar: React.FC<AddressBarProps> = ({ mailbox, onRefresh, loading, onCopy, accountInfo }) => {
   const [copied, setCopied] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -47,16 +48,26 @@ const AddressBar: React.FC<AddressBarProps> = ({ mailbox, onRefresh, loading, on
     }
   };
 
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  const usagePercent = accountInfo ? (accountInfo.used / accountInfo.quota) * 100 : 0;
+
   return (
     <div className="relative group rounded-2xl p-[1px] bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 shadow-2xl z-20">
       <div className="absolute inset-0 bg-gradient-to-r from-brand-500/20 via-purple-500/20 to-pink-500/20 rounded-2xl blur-lg opacity-50 group-hover:opacity-100 transition duration-1000"></div>
       
       <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl p-4 md:p-6 relative overflow-visible">
-        {/* Progress Bar */}
+        {/* Progress Bar (Activity Indicator) */}
         <div className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-brand-500 to-purple-500 transition-all duration-100 ease-linear rounded-b-2xl" style={{ width: `${progress}%`, opacity: loading ? 0 : 0.5 }}></div>
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex-1 space-y-2">
+          <div className="flex-1 space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-brand-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2">
                 <Sparkles className="w-3 h-3" /> Temporary Identity
@@ -115,12 +126,36 @@ const AddressBar: React.FC<AddressBarProps> = ({ mailbox, onRefresh, loading, on
                 </div>
               )}
             </div>
+
+            {/* Storage Quota Visual */}
+            {accountInfo && (
+              <div className="flex items-center gap-3 px-1 animate-fade-in-up">
+                <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden relative">
+                   <div 
+                     className={`h-full rounded-full transition-all duration-1000 relative ${
+                       usagePercent > 90 ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 
+                       usagePercent > 70 ? 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]' : 
+                       'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]'
+                     }`}
+                     style={{ width: `${Math.max(2, usagePercent)}%` }}
+                   >
+                     <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                   </div>
+                </div>
+                <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400 whitespace-nowrap min-w-fit">
+                   <Database className="w-3 h-3 text-slate-500" />
+                   <span className="text-slate-300">{formatBytes(accountInfo.used)}</span>
+                   <span className="text-slate-600">/</span>
+                   <span>{formatBytes(accountInfo.quota)}</span>
+                </div>
+              </div>
+            )}
           </div>
 
           <button
             onClick={onRefresh}
             disabled={loading}
-            className="flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 py-4 px-8 rounded-xl transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed h-full mt-2 md:mt-8 shadow-lg hover:shadow-xl hover:shadow-brand-900/20 whitespace-nowrap"
+            className="flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 py-4 px-8 rounded-xl transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed h-full mt-2 md:mt-0 shadow-lg hover:shadow-xl hover:shadow-brand-900/20 whitespace-nowrap self-stretch md:self-auto"
           >
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
             <span className="font-medium">Generate New</span>
