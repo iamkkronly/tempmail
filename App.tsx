@@ -4,7 +4,7 @@ import { createAccount, getMessages } from './services/mailService';
 import AddressBar from './components/AddressBar';
 import InboxList from './components/InboxList';
 import EmailView from './components/EmailView';
-import { Ghost, Shield, Zap } from 'lucide-react';
+import { Ghost, Shield, Zap, Lock } from 'lucide-react';
 
 const STORAGE_KEY = 'ghostmail_account_v1';
 
@@ -48,7 +48,6 @@ const App: React.FC = () => {
         localStorage.removeItem(STORAGE_KEY);
       }
     }
-    // Only create new if restoration failed or didn't exist
     generateNewIdentity();
   }, [generateNewIdentity]);
 
@@ -57,20 +56,17 @@ const App: React.FC = () => {
     if (!mailbox) return;
 
     const fetchMessages = async () => {
-      // Don't show loading spinner on background polls to keep UI stable
-      // Only show if we have 0 messages (initial fetch for this session)
-      if (messages.length === 0) setInboxLoading(true);
-      
+      // Background poll - update silently
       const msgs = await getMessages(mailbox.token);
       setMessages(msgs);
-      setInboxLoading(false);
     };
 
-    fetchMessages(); // Initial fetch
+    setInboxLoading(true);
+    fetchMessages().then(() => setInboxLoading(false)); // Initial explicit fetch
+    
     const interval = setInterval(fetchMessages, 5000); // Poll every 5s
-
     return () => clearInterval(interval);
-  }, [mailbox]); // Remove messages dependency to avoid loops, mailbox is stable enough
+  }, [mailbox]);
 
   const handleSelectEmail = (id: string) => {
     setSelectedEmailId(id);
@@ -84,33 +80,43 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-100 font-sans selection:bg-brand-500/30">
+    <div className="min-h-screen bg-[#020617] text-slate-100 font-sans selection:bg-brand-500/30 overflow-x-hidden relative">
+      
+      {/* Background Ambience */}
+      <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-900/10 rounded-full blur-[120px] animate-pulse-slow"></div>
+         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-brand-900/10 rounded-full blur-[120px] animate-pulse-slow" style={{animationDelay: '1.5s'}}></div>
+      </div>
+
       {/* Navbar */}
-      <nav className="border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3 cursor-pointer" onClick={() => window.location.reload()}>
-            <div className="bg-brand-600 p-2 rounded-lg shadow-lg shadow-brand-500/20">
+      <nav className="border-b border-slate-800/60 bg-slate-900/70 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center space-x-3 cursor-pointer group" onClick={() => window.location.reload()}>
+            <div className="bg-gradient-to-tr from-brand-600 to-indigo-600 p-2 rounded-lg shadow-lg shadow-brand-500/20 group-hover:shadow-brand-500/40 transition-shadow">
               <Ghost className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
+            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-slate-400">
               GhostMail AI
             </span>
           </div>
-          <div className="hidden md:flex items-center space-x-6 text-sm font-medium text-slate-400">
-            <div className="flex items-center space-x-1 hover:text-brand-400 transition-colors">
+          <div className="hidden md:flex items-center space-x-8 text-sm font-medium text-slate-400">
+            <div className="flex items-center space-x-2 hover:text-emerald-400 transition-colors cursor-help" title="End-to-end encryption compatible">
                <Shield className="w-4 h-4" /> <span>Secure</span>
             </div>
-             <div className="flex items-center space-x-1 hover:text-brand-400 transition-colors">
-               <Zap className="w-4 h-4" /> <span>Fast</span>
+             <div className="flex items-center space-x-2 hover:text-brand-400 transition-colors cursor-help" title="Instant delivery">
+               <Zap className="w-4 h-4" /> <span>Real-time</span>
+            </div>
+            <div className="flex items-center space-x-2 hover:text-purple-400 transition-colors cursor-help" title="No logs kept">
+               <Lock className="w-4 h-4" /> <span>Anonymous</span>
             </div>
           </div>
         </div>
       </nav>
 
-      <main className="max-w-4xl mx-auto px-4 py-8 space-y-8">
+      <main className="relative z-10 max-w-6xl mx-auto px-4 py-8 space-y-8">
         
         {/* Address Generator */}
-        <section>
+        <section className="transform transition-all duration-500 hover:scale-[1.01]">
           <AddressBar 
             mailbox={mailbox} 
             onRefresh={generateNewIdentity} 
@@ -119,7 +125,7 @@ const App: React.FC = () => {
         </section>
 
         {/* Content Area */}
-        <section className="min-h-[500px]">
+        <section className="min-h-[600px] animate-fade-in-up">
           {view === AppView.INBOX ? (
              <InboxList 
                messages={messages} 
@@ -139,8 +145,15 @@ const App: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800 py-8 mt-12 text-center text-slate-600 text-sm">
-         <p>© {new Date().getFullYear()} GhostMail AI. Anonymous. Encrypted.</p>
+      <footer className="border-t border-slate-800/50 py-10 mt-12 text-center text-slate-600 text-sm relative z-10 bg-slate-900/30">
+         <div className="max-w-2xl mx-auto space-y-4">
+            <p className="font-medium text-slate-500">© {new Date().getFullYear()} GhostMail AI.</p>
+            <p className="text-xs max-w-md mx-auto">
+              Temporary email service provided for testing and privacy purposes. 
+              Emails are automatically deleted after a period of time. 
+              Powered by Google Gemini for intelligent analysis.
+            </p>
+         </div>
       </footer>
     </div>
   );

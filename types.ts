@@ -4,6 +4,7 @@ export interface MailMessage {
   subject: string;
   date: string;
   intro?: string;
+  seen: boolean;
 }
 
 export interface FullMailMessage extends MailMessage {

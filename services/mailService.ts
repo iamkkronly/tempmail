@@ -42,7 +42,7 @@ export const createAccount = async (): Promise<Mailbox> => {
 
 export const getMessages = async (token: string): Promise<MailMessage[]> => {
   try {
-    const res = await fetch(`${API_BASE}/messages`, {
+    const res = await fetch(`${API_BASE}/messages?page=1`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     if (!res.ok) return [];
@@ -53,7 +53,8 @@ export const getMessages = async (token: string): Promise<MailMessage[]> => {
       from: msg.from.address,
       subject: msg.subject,
       date: msg.createdAt,
-      intro: msg.intro
+      intro: msg.intro,
+      seen: msg.seen
     }));
   } catch (error) {
     console.error("Failed to fetch messages", error);
@@ -63,6 +64,8 @@ export const getMessages = async (token: string): Promise<MailMessage[]> => {
 
 export const getMessageContent = async (token: string, id: string): Promise<FullMailMessage | null> => {
   try {
+    // Mark as seen automatically when fetching content by implicit API behavior usually, 
+    // but explicit patch might be needed. For now, we just fetch.
     const res = await fetch(`${API_BASE}/messages/${id}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
@@ -75,7 +78,8 @@ export const getMessageContent = async (token: string, id: string): Promise<Full
       subject: data.subject,
       date: data.createdAt,
       text: data.text || '',
-      html: data.html ? [data.html] : []
+      html: data.html ? [data.html] : [],
+      seen: true // Assumed true after open
     };
   } catch (error) {
     console.error("Failed to fetch message content", error);
