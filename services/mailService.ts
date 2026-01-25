@@ -64,8 +64,6 @@ export const getMessages = async (token: string): Promise<MailMessage[]> => {
 
 export const getMessageContent = async (token: string, id: string): Promise<FullMailMessage | null> => {
   try {
-    // Mark as seen automatically when fetching content by implicit API behavior usually, 
-    // but explicit patch might be needed. For now, we just fetch.
     const res = await fetch(`${API_BASE}/messages/${id}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
@@ -79,10 +77,40 @@ export const getMessageContent = async (token: string, id: string): Promise<Full
       date: data.createdAt,
       text: data.text || '',
       html: data.html ? [data.html] : [],
-      seen: true // Assumed true after open
+      seen: true 
     };
   } catch (error) {
     console.error("Failed to fetch message content", error);
     return null;
+  }
+};
+
+export const deleteMessage = async (token: string, id: string): Promise<boolean> => {
+  try {
+    const res = await fetch(`${API_BASE}/messages/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return res.ok;
+  } catch (error) {
+    console.error("Failed to delete message", error);
+    return false;
+  }
+};
+
+export const markMessageSeen = async (token: string, id: string): Promise<boolean> => {
+  try {
+    const res = await fetch(`${API_BASE}/messages/${id}`, {
+      method: 'PATCH',
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/merge-patch+json'
+      },
+      body: JSON.stringify({ seen: true })
+    });
+    return res.ok;
+  } catch (error) {
+    console.error("Failed to mark message as seen", error);
+    return false;
   }
 };

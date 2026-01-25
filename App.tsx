@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Mailbox, MailMessage, AppView } from './types';
-import { createAccount, getMessages } from './services/mailService';
+import { createAccount, getMessages, deleteMessage, markMessageSeen } from './services/mailService';
 import AddressBar from './components/AddressBar';
 import InboxList from './components/InboxList';
 import EmailView from './components/EmailView';
-import { Ghost, Shield, Zap, Lock } from 'lucide-react';
+import { Ghost, Shield, Zap, Lock, Bell, CheckCircle } from 'lucide-react';
 
 const STORAGE_KEY = 'ghostmail_account_v1';
 
@@ -15,6 +15,13 @@ const App: React.FC = () => {
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [inboxLoading, setInboxLoading] = useState(false);
+  const [toast, setToast] = useState<{message: string, type: 'success' | 'info'} | null>(null);
+
+  // Show Toast
+  const showToast = (message: string, type: 'success' | 'info' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // Generate a brand new account
   const generateNewIdentity = useCallback(async () => {
@@ -26,6 +33,7 @@ const App: React.FC = () => {
       setMessages([]);
       setView(AppView.INBOX);
       setSelectedEmailId(null);
+      showToast('New secure identity created', 'success');
     } catch (e) {
       console.error("Failed to create mailbox", e);
     } finally {
@@ -58,7 +66,14 @@ const App: React.FC = () => {
     const fetchMessages = async () => {
       // Background poll - update silently
       const msgs = await getMessages(mailbox.token);
-      setMessages(msgs);
+      
+      // Basic check for new messages to notify (very simple logic)
+      setMessages(prev => {
+        if (msgs.length > prev.length && prev.length > 0) {
+           // Could trigger sound or toast here if desired
+        }
+        return msgs;
+      });
     };
 
     setInboxLoading(true);
@@ -68,15 +83,35 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [mailbox]);
 
-  const handleSelectEmail = (id: string) => {
+  const handleSelectEmail = async (id: string) => {
+    // Optimistically mark as seen in UI
+    setMessages(msgs => msgs.map(m => m.id === id ? { ...m, seen: true } : m));
     setSelectedEmailId(id);
     setView(AppView.EMAIL_DETAIL);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    // API Call
+    if (mailbox) {
+       await markMessageSeen(mailbox.token, id);
+    }
   };
 
   const handleBack = () => {
     setView(AppView.INBOX);
     setSelectedEmailId(null);
+  };
+
+  const handleDeleteEmail = async (id: string) => {
+    if (!mailbox) return;
+    
+    const success = await deleteMessage(mailbox.token, id);
+    if (success) {
+      setMessages(msgs => msgs.filter(m => m.id !== id));
+      showToast('Message deleted permanently', 'info');
+      if (selectedEmailId === id) {
+        handleBack();
+      }
+    }
   };
 
   return (
@@ -87,6 +122,16 @@ const App: React.FC = () => {
          <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-900/10 rounded-full blur-[120px] animate-pulse-slow"></div>
          <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-brand-900/10 rounded-full blur-[120px] animate-pulse-slow" style={{animationDelay: '1.5s'}}></div>
       </div>
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed top-24 right-4 z-[100] animate-fade-in-left">
+           <div className="bg-slate-800/90 backdrop-blur border border-slate-700 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3">
+              {toast.type === 'success' ? <CheckCircle className="w-5 h-5 text-emerald-400" /> : <Bell className="w-5 h-5 text-brand-400" />}
+              <span className="text-sm font-medium">{toast.message}</span>
+           </div>
+        </div>
+      )}
 
       {/* Navbar */}
       <nav className="border-b border-slate-800/60 bg-slate-900/70 backdrop-blur-md sticky top-0 z-50">
@@ -120,7 +165,8 @@ const App: React.FC = () => {
           <AddressBar 
             mailbox={mailbox} 
             onRefresh={generateNewIdentity} 
-            loading={loading} 
+            loading={loading}
+            onCopy={() => showToast('Address copied to clipboard')}
           />
         </section>
 
@@ -137,7 +183,8 @@ const App: React.FC = () => {
               <EmailView 
                 id={selectedEmailId} 
                 mailbox={mailbox} 
-                onBack={handleBack} 
+                onBack={handleBack}
+                onDelete={handleDeleteEmail}
               />
             )
           )}

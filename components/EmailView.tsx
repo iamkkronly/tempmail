@@ -8,13 +8,14 @@ interface EmailViewProps {
   id: string;
   mailbox: Mailbox;
   onBack: () => void;
+  onDelete: (id: string) => void;
 }
 
-const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack }) => {
+const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) => {
   const [email, setEmail] = useState<FullMailMessage | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'visual' | 'source'>('visual');
-  const [showAI, setShowAI] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const fetchEmail = async () => {
@@ -25,6 +26,27 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack }) => {
     };
     fetchEmail();
   }, [id, mailbox]);
+
+  const handleDelete = async () => {
+    if (confirm('Are you sure you want to delete this email permanently?')) {
+      setIsDeleting(true);
+      await onDelete(id);
+      // Wait a tick or just go back, parent handles logic
+      onBack();
+    }
+  };
+
+  const handleDownload = () => {
+    if (!email) return;
+    const content = email.html && email.html.length > 0 ? email.html[0] : email.text;
+    const element = document.createElement("a");
+    const file = new Blob([content], {type: 'text/html'});
+    element.href = URL.createObjectURL(file);
+    element.download = `${email.subject.replace(/[^a-z0-9]/gi, '_').substring(0, 50) || 'email'}.html`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  };
 
   if (loading) {
     return (
@@ -55,7 +77,7 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack }) => {
   const content = email.html && email.html.length > 0 ? email.html[0] : email.text;
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 h-full items-start">
+    <div className="flex flex-col lg:flex-row gap-6 h-full items-start animate-fade-in-up">
       
       {/* Main Email Content */}
       <div className="flex-1 w-full bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl flex flex-col h-auto min-h-[600px]">
@@ -80,10 +102,19 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack }) => {
               <span className="hidden sm:inline">{viewMode === 'visual' ? 'View Source' : 'Visual Preview'}</span>
             </button>
              <div className="w-px h-6 bg-slate-700 mx-2 self-center"></div>
-            <button className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors" title="Download">
+            <button 
+              onClick={handleDownload}
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors" 
+              title="Download HTML"
+            >
               <Download className="w-4 h-4" />
             </button>
-            <button className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors" title="Delete">
+            <button 
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50" 
+              title="Delete Email"
+            >
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
