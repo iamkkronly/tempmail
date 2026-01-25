@@ -83,3 +83,20 @@ export const draftReply = async (email: FullMailMessage, tone: string): Promise<
     return "Error generating reply. Please check your API key.";
   }
 };
+
+export const translateEmail = async (text: string, targetLang: string = "English"): Promise<string> => {
+  const ai = getAI();
+  const model = "gemini-3-flash-preview";
+  const prompt = `Translate the following text to ${targetLang}. Maintain the original tone and formatting:\n\n${text}`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model,
+      contents: prompt,
+    });
+    return response.text || "Translation failed.";
+  } catch (e) {
+    console.error(e);
+    return "Error translating text.";
+  }
+};

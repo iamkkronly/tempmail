@@ -1,14 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import { MailMessage } from '../types';
-import { Mail, ChevronRight, Clock, Search, X, Filter } from 'lucide-react';
+import { Mail, ChevronRight, Clock, Search, X, Filter, RefreshCw, Trash2, CheckCheck, KeyRound } from 'lucide-react';
 
 interface InboxListProps {
   messages: MailMessage[];
   onSelect: (id: string) => void;
   loading: boolean;
+  onRefresh: () => void;
+  onDelete: (id: string) => void;
+  onMarkSeen: (id: string) => void;
 }
 
-const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading }) => {
+const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRefresh, onDelete, onMarkSeen }) => {
   const [search, setSearch] = useState('');
 
   const filteredMessages = useMemo(() => {
@@ -20,6 +23,14 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading }) =>
       (m.intro && m.intro.toLowerCase().includes(lowerSearch))
     );
   }, [messages, search]);
+
+  // Extract verification codes (4-8 digits)
+  const getVerificationCode = (msg: MailMessage): string | null => {
+    const textToCheck = `${msg.subject} ${msg.intro || ''}`;
+    // Look for 4-8 digit patterns often used in codes
+    const match = textToCheck.match(/\b\d{4,8}\b/);
+    return match ? match[0] : null;
+  };
 
   // Skeleton Loader Component
   const SkeletonItem = () => (
@@ -39,11 +50,17 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading }) =>
     <div className="space-y-4">
        {/* Header & Search */}
        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-1 mb-6">
-         <div className="flex items-center gap-3">
+         <div className="flex items-center gap-4">
             <h2 className="text-slate-200 text-lg font-bold flex items-center gap-2">
-              Inbox <span className="text-slate-500 text-sm font-normal">({messages.length})</span>
+              Inbox <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full text-xs font-mono">{messages.length}</span>
             </h2>
-            {loading && <div className="w-2 h-2 rounded-full bg-brand-400 animate-ping"></div>}
+            <button 
+              onClick={onRefresh}
+              className={`p-2 rounded-lg bg-slate-800/50 hover:bg-slate-800 text-slate-400 hover:text-white transition-all border border-slate-700/50 ${loading ? 'animate-spin text-brand-400' : ''}`}
+              title="Refresh Inbox"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
          </div>
 
          {messages.length > 0 && (
@@ -56,7 +73,7 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading }) =>
                value={search}
                onChange={(e) => setSearch(e.target.value)}
                placeholder="Search emails..."
-               className="block w-full pl-10 pr-8 py-2 border border-slate-700/50 rounded-xl leading-5 bg-slate-900/50 text-slate-300 placeholder-slate-500 focus:outline-none focus:bg-slate-900 focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/50 sm:text-sm transition-all shadow-sm"
+               className="block w-full pl-10 pr-8 py-2.5 border border-slate-700/50 rounded-xl leading-5 bg-slate-900/50 text-slate-300 placeholder-slate-500 focus:outline-none focus:bg-slate-900 focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/50 text-sm transition-all shadow-sm backdrop-blur-sm"
              />
              {search && (
                <button 
@@ -72,7 +89,7 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading }) =>
       
       {/* Loading State - Skeletons */}
       {loading && messages.length === 0 && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <SkeletonItem />
           <SkeletonItem />
           <SkeletonItem />
@@ -84,13 +101,13 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading }) =>
         <div className="flex flex-col items-center justify-center h-80 text-slate-500 border border-dashed border-slate-800 rounded-2xl bg-slate-900/20 backdrop-blur-sm transition-all duration-500 hover:border-slate-700 group">
           <div className="relative">
              <div className="absolute -inset-4 bg-gradient-to-r from-brand-500/20 to-indigo-500/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition duration-700"></div>
-             <div className="relative w-20 h-20 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4 ring-1 ring-slate-700/50 group-hover:scale-110 transition-transform duration-300">
+             <div className="relative w-20 h-20 bg-slate-800/50 rounded-2xl flex items-center justify-center mb-4 ring-1 ring-slate-700/50 group-hover:scale-110 transition-transform duration-300 shadow-xl">
                <Mail className="w-8 h-8 text-slate-600 group-hover:text-brand-400 transition-colors duration-300" />
              </div>
           </div>
           <h3 className="text-lg font-semibold text-slate-300 mb-1">Your Inbox is Empty</h3>
           <p className="max-w-xs text-center text-sm text-slate-500 leading-relaxed">
-            Ready to receive secure, anonymous emails.
+            Waiting for incoming messages...<br/>They will appear here instantly.
           </p>
         </div>
       )}
@@ -105,66 +122,109 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading }) =>
 
       {/* Message List */}
       <div className="space-y-3">
-      {filteredMessages.map((msg) => (
-        <div
-          key={msg.id}
-          onClick={() => onSelect(msg.id)}
-          className={`
-            group relative overflow-hidden rounded-xl p-3 sm:p-4 cursor-pointer transition-all duration-300 
-            border hover:-translate-y-1 hover:shadow-xl
-            ${!msg.seen 
-              ? 'bg-gradient-to-r from-slate-800/90 to-slate-900/90 border-brand-500/30 shadow-lg shadow-brand-900/10' 
-              : 'bg-slate-900/40 border-slate-800 hover:border-slate-700 hover:bg-slate-800/80'
-            }
-          `}
-        >
-          {/* Unread Indicator Effect */}
-          {!msg.seen && (
-            <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-400 to-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
-          )}
-
-          <div className="flex items-start justify-between gap-3 sm:gap-4">
-            <div className="flex items-center space-x-3 sm:space-x-4 overflow-hidden flex-1">
-              <div className={`
-                flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-white font-bold text-base sm:text-lg shadow-inner transition-transform group-hover:scale-105
-                ${!msg.seen 
-                  ? 'bg-gradient-to-br from-brand-600 to-indigo-600 ring-2 ring-brand-500/20' 
-                  : 'bg-slate-800 text-slate-400'
-                }
-              `}>
-                {msg.from.charAt(0).toUpperCase()}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <p className={`text-sm truncate transition-colors ${!msg.seen ? 'text-white font-bold' : 'text-slate-300 font-medium'}`}>
-                    {msg.from}
-                  </p>
-                  {!msg.seen && <span className="flex h-2 w-2 relative">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500"></span>
-                  </span>}
+      {filteredMessages.map((msg) => {
+        const code = getVerificationCode(msg);
+        return (
+          <div
+            key={msg.id}
+            className={`
+              group relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 
+              border hover:-translate-y-1 hover:shadow-xl hover:shadow-black/50
+              ${!msg.seen 
+                ? 'bg-gradient-to-r from-slate-800 to-slate-900 border-brand-500/30' 
+                : 'bg-slate-900/40 border-slate-800 hover:border-slate-600 hover:bg-slate-800/80'
+              }
+            `}
+          >
+            {/* Click area covers everything except quick actions */}
+            <div className="p-3 sm:p-4 flex items-start justify-between gap-3 sm:gap-4" onClick={() => onSelect(msg.id)}>
+              
+              {/* Left Side: Avatar & Content */}
+              <div className="flex items-center space-x-3 sm:space-x-4 overflow-hidden flex-1">
+                <div className={`
+                  flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-white font-bold text-base sm:text-lg shadow-inner transition-transform group-hover:scale-105
+                  ${!msg.seen 
+                    ? 'bg-gradient-to-br from-brand-600 to-indigo-600 ring-2 ring-brand-500/20' 
+                    : 'bg-slate-800 text-slate-400'
+                  }
+                `}>
+                  {msg.from.charAt(0).toUpperCase()}
                 </div>
-                <p className={`text-sm truncate mb-1 ${!msg.seen ? 'text-slate-100 font-semibold' : 'text-slate-400'}`}>
-                  {msg.subject || '(No Subject)'}
-                </p>
-                <p className="text-xs text-slate-500 truncate font-light group-hover:text-slate-400 transition-colors">
-                  {msg.intro || 'No preview available...'}
-                </p>
+                
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className={`text-sm truncate transition-colors ${!msg.seen ? 'text-white font-bold' : 'text-slate-300 font-medium'}`}>
+                      {msg.from}
+                    </p>
+                    {!msg.seen && (
+                      <span className="flex h-2 w-2 relative">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500"></span>
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className={`text-sm truncate ${!msg.seen ? 'text-slate-100 font-semibold' : 'text-slate-400'}`}>
+                      {msg.subject || '(No Subject)'}
+                    </p>
+                    
+                    {/* Instant Verification Code Badge */}
+                    {code && (
+                      <div className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider animate-pulse-slow">
+                        <KeyRound className="w-3 h-3" />
+                        {code}
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-slate-500 truncate font-light group-hover:text-slate-400 transition-colors">
+                    {msg.intro || 'No preview available...'}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Right Side: Meta & Actions */}
+              <div className="flex flex-col items-end space-y-3 ml-1 sm:ml-2">
+                 <span className={`text-[10px] sm:text-xs flex items-center gap-1 whitespace-nowrap ${!msg.seen ? 'text-brand-300 font-medium' : 'text-slate-600'}`}>
+                    <Clock className="w-3 h-3" />
+                    {new Date(msg.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                 </span>
+                 
+                 {/* Hover Action Arrow */}
+                 <div className="w-8 h-8 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 -mr-2 transform translate-x-2 group-hover:translate-x-0 hidden sm:flex">
+                   <ChevronRight className="w-4 h-4 text-brand-400" />
+                 </div>
               </div>
             </div>
-            
-            <div className="flex flex-col items-end space-y-3 ml-1 sm:ml-2">
-               <span className={`text-[10px] sm:text-xs flex items-center gap-1 whitespace-nowrap ${!msg.seen ? 'text-brand-300 font-medium' : 'text-slate-600'}`}>
-                  <Clock className="w-3 h-3" />
-                  {new Date(msg.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-               </span>
-               <div className="w-8 h-8 rounded-full bg-slate-800/0 group-hover:bg-brand-500/10 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 -mr-2 transform translate-x-2 group-hover:translate-x-0 hidden sm:flex">
-                 <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-brand-400" />
-               </div>
+
+            {/* Quick Actions (Slide in on hover/focus) */}
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-2 translate-x-12 group-hover:translate-x-0 transition-transform duration-300 opacity-0 group-hover:opacity-100 z-10 bg-slate-950/80 backdrop-blur p-1 rounded-lg border border-slate-800 shadow-xl">
+               <button 
+                  onClick={(e) => { e.stopPropagation(); onDelete(msg.id); }}
+                  className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                  title="Delete"
+               >
+                  <Trash2 className="w-4 h-4" />
+               </button>
+               {!msg.seen && (
+                 <button 
+                    onClick={(e) => { e.stopPropagation(); onMarkSeen(msg.id); }}
+                    className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition-colors"
+                    title="Mark Read"
+                 >
+                    <CheckCheck className="w-4 h-4" />
+                 </button>
+               )}
             </div>
+
+            {/* Unread Indicator Bar */}
+            {!msg.seen && (
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand-400 to-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
+            )}
           </div>
-        </div>
-      ))}
+        );
+      })}
       </div>
     </div>
   );

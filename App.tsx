@@ -106,8 +106,11 @@ const App: React.FC = () => {
       if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return;
 
       if (e.key === 'r' || e.key === 'R') {
-         // Refresh logic could go here but we use auto-poll mostly.
-         // Maybe force reload page or just toast?
+         // Manual refresh logic could be triggered here if we extracted it from useEffect
+         if (view === AppView.INBOX && mailbox) {
+           // We can't easily call the fetch inside useEffect from here without refactoring, 
+           // but we added a button in UI.
+         }
       }
 
       if (e.key === 'Escape') {
@@ -118,7 +121,7 @@ const App: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [view]);
+  }, [view, mailbox]);
 
   // Generate a brand new account
   const generateNewIdentity = useCallback(async () => {
@@ -157,70 +160,78 @@ const App: React.FC = () => {
     generateNewIdentity();
   }, [generateNewIdentity]);
 
+  // Define data fetching logic separately so it can be called manually
+  const fetchMailData = useCallback(async () => {
+    if (!mailbox) return;
+    
+    // 1. Get Messages
+    const rawMsgs = await getMessages(mailbox.token);
+    
+    // Auto-delete logic
+    const now = Date.now();
+    const retentionLimit = now - (AUTO_DELETE_DAYS * 24 * 60 * 60 * 1000);
+    
+    const activeMsgs: MailMessage[] = [];
+    const expiredMsgs: MailMessage[] = [];
+
+    rawMsgs.forEach(msg => {
+      const msgTime = new Date(msg.date).getTime();
+      if (msgTime < retentionLimit) {
+          expiredMsgs.push(msg);
+      } else {
+          activeMsgs.push(msg);
+      }
+    });
+
+    // Cleanup expired in background
+    if (expiredMsgs.length > 0) {
+      Promise.all(expiredMsgs.map(m => deleteMessage(mailbox.token, m.id)))
+          .then(() => console.log(`Cleaned ${expiredMsgs.length} expired messages`))
+          .catch(e => console.error("Auto-delete failed", e));
+    }
+    
+    setMessages(prev => {
+      // Robust new message detection (ID based)
+      if (prev.length > 0) {
+         const prevIds = new Set(prev.map(m => m.id));
+         const newMsgs = activeMsgs.filter(m => !prevIds.has(m.id));
+         
+         if (newMsgs.length > 0) {
+           const latest = newMsgs[0];
+           showToast(`${newMsgs.length} new message${newMsgs.length > 1 ? 's' : ''}`, 'info');
+           
+           if (document.hidden && Notification.permission === 'granted') {
+             new Notification('New GhostMail', {
+               body: `From: ${latest.from}\n${latest.subject}`,
+               icon: '/vite.svg' 
+             });
+           }
+         }
+      }
+      return activeMsgs;
+    });
+
+    // 2. Get Account Usage (Quota)
+    const info = await getAccountDetails(mailbox.token);
+    if (info) setAccountInfo(info);
+  }, [mailbox, showToast]);
+
   // Polling for emails and account info
   useEffect(() => {
     if (!mailbox) return;
 
-    const fetchData = async () => {
-      // 1. Get Messages
-      const rawMsgs = await getMessages(mailbox.token);
-      
-      // Auto-delete logic
-      const now = Date.now();
-      const retentionLimit = now - (AUTO_DELETE_DAYS * 24 * 60 * 60 * 1000);
-      
-      const activeMsgs: MailMessage[] = [];
-      const expiredMsgs: MailMessage[] = [];
-
-      rawMsgs.forEach(msg => {
-        const msgTime = new Date(msg.date).getTime();
-        if (msgTime < retentionLimit) {
-            expiredMsgs.push(msg);
-        } else {
-            activeMsgs.push(msg);
-        }
-      });
-
-      // Cleanup expired in background
-      if (expiredMsgs.length > 0) {
-        Promise.all(expiredMsgs.map(m => deleteMessage(mailbox.token, m.id)))
-            .then(() => console.log(`Cleaned ${expiredMsgs.length} expired messages`))
-            .catch(e => console.error("Auto-delete failed", e));
-      }
-      
-      setMessages(prev => {
-        // Robust new message detection (ID based)
-        // Check if any message in activeMsgs is NOT in prev (and prev is not empty to avoid initial load spam)
-        if (prev.length > 0) {
-           const prevIds = new Set(prev.map(m => m.id));
-           const newMsgs = activeMsgs.filter(m => !prevIds.has(m.id));
-           
-           if (newMsgs.length > 0) {
-             const latest = newMsgs[0];
-             showToast(`${newMsgs.length} new message${newMsgs.length > 1 ? 's' : ''}`, 'info');
-             
-             if (document.hidden && Notification.permission === 'granted') {
-               new Notification('New GhostMail', {
-                 body: `From: ${latest.from}\n${latest.subject}`,
-                 icon: '/vite.svg' 
-               });
-             }
-           }
-        }
-        return activeMsgs;
-      });
-
-      // 2. Get Account Usage (Quota)
-      const info = await getAccountDetails(mailbox.token);
-      if (info) setAccountInfo(info);
-    };
-
     setInboxLoading(true);
-    fetchData().then(() => setInboxLoading(false)); // Initial explicit fetch
+    fetchMailData().then(() => setInboxLoading(false)); // Initial explicit fetch
     
-    const interval = setInterval(fetchData, 5000); // Poll every 5s
+    const interval = setInterval(fetchMailData, 5000); // Poll every 5s
     return () => clearInterval(interval);
-  }, [mailbox, showToast]);
+  }, [mailbox, fetchMailData]);
+
+  const handleManualRefresh = async () => {
+    setInboxLoading(true);
+    await fetchMailData();
+    setInboxLoading(false);
+  };
 
   const handleSelectEmail = async (id: string) => {
     // Optimistically mark as seen in UI
@@ -240,16 +251,27 @@ const App: React.FC = () => {
     setSelectedEmailId(null);
   };
 
+  const handleMarkSeen = async (id: string) => {
+    if (!mailbox) return;
+    setMessages(msgs => msgs.map(m => m.id === id ? { ...m, seen: true } : m));
+    await markMessageSeen(mailbox.token, id);
+  };
+
   const handleDeleteEmail = async (id: string) => {
     if (!mailbox) return;
     
+    // Optimistic UI update
+    setMessages(msgs => msgs.filter(m => m.id !== id));
+    
     const success = await deleteMessage(mailbox.token, id);
     if (success) {
-      setMessages(msgs => msgs.filter(m => m.id !== id));
-      showToast('Message deleted permanently', 'info');
+      showToast('Message deleted', 'info');
       if (selectedEmailId === id) {
         handleBack();
       }
+    } else {
+      // Revert if failed (optional, but good practice)
+      handleManualRefresh();
     }
   };
 
@@ -371,7 +393,10 @@ const App: React.FC = () => {
              <InboxList 
                messages={messages} 
                onSelect={handleSelectEmail} 
-               loading={inboxLoading} 
+               loading={inboxLoading}
+               onRefresh={handleManualRefresh}
+               onDelete={handleDeleteEmail}
+               onMarkSeen={handleMarkSeen}
              />
           ) : (
             mailbox && selectedEmailId && (
