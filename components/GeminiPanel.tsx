@@ -43,21 +43,21 @@ const GeminiPanel: React.FC<GeminiPanelProps> = ({ email }) => {
 
   if (!analysis && !loading && !reply) {
     return (
-      <div className="flex gap-3">
+      <div className="flex flex-col sm:flex-row gap-3">
         <button
           onClick={handleAnalyze}
           className="flex-1 flex items-center justify-center space-x-2 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white py-3 px-4 rounded-xl transition-all shadow-lg shadow-brand-900/20"
         >
-          <Sparkles className="w-5 h-5" />
-          <span>Analyze Security & Summarize</span>
+          <Sparkles className="w-5 h-5 flex-shrink-0" />
+          <span className="whitespace-nowrap">Analyze Security</span>
         </button>
         <button
           onClick={() => handleDraftReply('Professional')}
           disabled={replyLoading}
           className="flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-200 py-3 px-4 rounded-xl transition-all border border-slate-700"
         >
-          <PenTool className="w-5 h-5" />
-          <span>Draft Reply</span>
+          <PenTool className="w-5 h-5 flex-shrink-0" />
+          <span className="whitespace-nowrap">Draft Reply</span>
         </button>
       </div>
     );
@@ -74,9 +74,9 @@ const GeminiPanel: React.FC<GeminiPanelProps> = ({ email }) => {
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center space-x-3">
               {analysis.riskLevel === 'LOW' ? (
-                <ShieldCheck className="w-6 h-6 text-emerald-400" />
+                <ShieldCheck className="w-6 h-6 text-emerald-400 flex-shrink-0" />
               ) : (
-                <ShieldAlert className={`w-6 h-6 ${analysis.riskLevel === 'HIGH' ? 'text-red-500' : 'text-yellow-500'}`} />
+                <ShieldAlert className={`w-6 h-6 flex-shrink-0 ${analysis.riskLevel === 'HIGH' ? 'text-red-500' : 'text-yellow-500'}`} />
               )}
               <div>
                 <h3 className="font-semibold text-white">Security Analysis</h3>
@@ -89,7 +89,7 @@ const GeminiPanel: React.FC<GeminiPanelProps> = ({ email }) => {
                 </p>
               </div>
             </div>
-            <Bot className="w-5 h-5 text-slate-500" />
+            <Bot className="w-5 h-5 text-slate-500 flex-shrink-0" />
           </div>
 
           <div className="space-y-3">
@@ -103,7 +103,7 @@ const GeminiPanel: React.FC<GeminiPanelProps> = ({ email }) => {
                 <h4 className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">Action Items</h4>
                 <ul className="list-disc list-inside text-sm text-slate-300 space-y-1">
                   {analysis.actionableItems.map((item, idx) => (
-                    <li key={idx}>{item}</li>
+                    <li key={idx} className="break-words">{item}</li>
                   ))}
                 </ul>
               </div>
@@ -126,10 +126,10 @@ const GeminiPanel: React.FC<GeminiPanelProps> = ({ email }) => {
              </h4>
              <button onClick={() => {navigator.clipboard.writeText(reply)}} className="text-xs text-slate-500 hover:text-white transition-colors">Copy</button>
           </div>
-          <pre className="whitespace-pre-wrap text-slate-300 text-sm font-sans bg-black/20 p-4 rounded-lg border border-white/5">
+          <pre className="whitespace-pre-wrap text-slate-300 text-sm font-sans bg-black/20 p-4 rounded-lg border border-white/5 overflow-x-auto">
             {reply}
           </pre>
-          <div className="flex gap-2 mt-3">
+          <div className="flex flex-wrap gap-2 mt-3">
              <button onClick={() => handleDraftReply('Professional')} className="px-3 py-1 text-xs bg-slate-800 rounded border border-slate-700 text-slate-400 hover:text-white">Professional</button>
              <button onClick={() => handleDraftReply('Friendly')} className="px-3 py-1 text-xs bg-slate-800 rounded border border-slate-700 text-slate-400 hover:text-white">Friendly</button>
              <button onClick={() => handleDraftReply('Angry')} className="px-3 py-1 text-xs bg-slate-800 rounded border border-slate-700 text-slate-400 hover:text-white">Angry</button>

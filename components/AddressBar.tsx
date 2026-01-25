@@ -51,7 +51,7 @@ const AddressBar: React.FC<AddressBarProps> = ({ mailbox, onRefresh, loading, on
     <div className="relative group rounded-2xl p-[1px] bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 shadow-2xl z-20">
       <div className="absolute inset-0 bg-gradient-to-r from-brand-500/20 via-purple-500/20 to-pink-500/20 rounded-2xl blur-lg opacity-50 group-hover:opacity-100 transition duration-1000"></div>
       
-      <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl p-6 relative overflow-visible">
+      <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl p-4 md:p-6 relative overflow-visible">
         {/* Progress Bar */}
         <div className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-brand-500 to-purple-500 transition-all duration-100 ease-linear rounded-b-2xl" style={{ width: `${progress}%`, opacity: loading ? 0 : 0.5 }}></div>
 

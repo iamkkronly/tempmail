@@ -77,22 +77,22 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
   const content = email.html && email.html.length > 0 ? email.html[0] : email.text;
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 h-full items-start animate-fade-in-up">
+    <div className="flex flex-col lg:flex-row gap-6 h-full items-start animate-fade-in-up w-full max-w-full">
       
       {/* Main Email Content */}
-      <div className="flex-1 w-full bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl flex flex-col h-auto min-h-[600px]">
+      <div className="flex-1 w-full max-w-full bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl flex flex-col h-auto min-h-[600px]">
         
         {/* Toolbar */}
         <div className="bg-slate-900/95 backdrop-blur border-b border-slate-800 p-4 flex items-center justify-between sticky top-0 z-20">
           <button 
             onClick={onBack}
-            className="flex items-center space-x-2 text-slate-400 hover:text-white transition-colors hover:bg-slate-800 px-3 py-2 rounded-lg group"
+            className="flex items-center space-x-2 text-slate-400 hover:text-white transition-colors hover:bg-slate-800 px-3 py-2 rounded-lg group flex-shrink-0"
           >
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            <span className="font-medium">Inbox</span>
+            <span className="font-medium hidden xs:inline">Inbox</span>
           </button>
           
-          <div className="flex space-x-1">
+          <div className="flex space-x-1 flex-shrink-0">
             <button 
               onClick={() => setViewMode(viewMode === 'visual' ? 'source' : 'visual')}
               className={`p-2 rounded-lg transition-colors flex items-center gap-2 text-xs font-medium px-3 ${viewMode === 'source' ? 'bg-brand-500/10 text-brand-400' : 'text-slate-400 hover:bg-slate-800'}`}
@@ -121,19 +121,19 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
         </div>
 
         {/* Email Header Info */}
-        <div className="p-6 bg-gradient-to-b from-slate-800/50 to-transparent">
-          <h1 className="text-2xl font-bold text-white leading-tight mb-6">{email.subject || '(No Subject)'}</h1>
+        <div className="p-4 md:p-6 bg-gradient-to-b from-slate-800/50 to-transparent">
+          <h1 className="text-xl md:text-2xl font-bold text-white leading-tight mb-6 break-words">{email.subject || '(No Subject)'}</h1>
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-brand-600 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-lg">
+            <div className="flex items-center space-x-4 min-w-0">
+              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-tr from-brand-600 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-lg">
                  {email.from.charAt(0).toUpperCase()}
               </div>
-              <div>
-                <p className="text-white font-semibold text-base">{email.from}</p>
-                <div className="flex items-center gap-2 mt-0.5">
-                   <p className="text-slate-400 text-xs font-mono bg-slate-800/80 px-2 py-0.5 rounded">To: {mailbox.address}</p>
-                   <span className="text-slate-600 text-xs">•</span>
-                   <p className="text-slate-500 text-xs">{new Date(email.date).toLocaleString()}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-white font-semibold text-base truncate">{email.from}</p>
+                <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                   <p className="text-slate-400 text-xs font-mono bg-slate-800/80 px-2 py-0.5 rounded truncate max-w-full">To: {mailbox.address}</p>
+                   <span className="text-slate-600 text-xs hidden sm:inline">•</span>
+                   <p className="text-slate-500 text-xs whitespace-nowrap">{new Date(email.date).toLocaleString()}</p>
                 </div>
               </div>
             </div>
@@ -141,7 +141,7 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
         </div>
 
         {/* Content Viewer */}
-        <div className="flex-1 bg-white relative">
+        <div className="flex-1 bg-white relative w-full">
           {viewMode === 'visual' ? (
              <iframe
              title="Email Content"
@@ -149,12 +149,12 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
                <html>
                  <head>
                    <style>
-                     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; padding: 24px; line-height: 1.6; font-size: 16px; margin: 0; }
-                     a { color: #4f46e5; text-decoration: none; }
+                     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; padding: 16px; line-height: 1.6; font-size: 16px; margin: 0; word-wrap: break-word; }
+                     a { color: #4f46e5; text-decoration: none; word-break: break-all; }
                      a:hover { text-decoration: underline; }
                      img { max-width: 100%; height: auto; border-radius: 8px; }
                      blockquote { border-left: 4px solid #e2e8f0; margin: 0; padding-left: 16px; color: #64748b; }
-                     pre { background: #f1f5f9; padding: 12px; border-radius: 8px; overflow-x: auto; }
+                     pre { background: #f1f5f9; padding: 12px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
                    </style>
                  </head>
                  <body>
@@ -166,8 +166,8 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
              sandbox="allow-popups allow-popups-to-escape-sandbox" 
            />
           ) : (
-            <div className="absolute inset-0 bg-slate-950 p-6 overflow-auto">
-              <pre className="text-xs font-mono text-emerald-400 whitespace-pre-wrap font-light leading-relaxed">
+            <div className="absolute inset-0 bg-slate-950 p-4 md:p-6 overflow-auto">
+              <pre className="text-xs font-mono text-emerald-400 whitespace-pre-wrap font-light leading-relaxed break-all">
                 {content}
               </pre>
             </div>
@@ -179,7 +179,7 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
       <div className="w-full lg:w-[350px] space-y-4 flex-shrink-0">
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl sticky top-24">
           <div className="flex items-center gap-2 mb-4 pb-4 border-b border-slate-800">
-            <Sparkles className="w-5 h-5 text-brand-400" />
+            <Sparkles className="w-5 h-5 text-brand-400 flex-shrink-0" />
             <h3 className="font-bold text-slate-200">Gemini AI Assistant</h3>
           </div>
           
