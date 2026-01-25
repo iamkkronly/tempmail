@@ -1,4 +1,4 @@
-import { MailMessage, FullMailMessage, Mailbox } from '../types';
+import { MailMessage, FullMailMessage, Mailbox, AccountDetails } from '../types';
 
 const API_BASE = 'https://api.mail.tm';
 
@@ -22,6 +22,7 @@ export const createAccount = async (): Promise<Mailbox> => {
     });
     
     if (!regRes.ok) throw new Error('Failed to register account');
+    const accountData = await regRes.json();
 
     // 4. Get Auth Token
     const tokenRes = await fetch(`${API_BASE}/token`, {
@@ -33,7 +34,7 @@ export const createAccount = async (): Promise<Mailbox> => {
     
     if (!tokenData.token) throw new Error('Failed to get access token');
 
-    return { address, token: tokenData.token };
+    return { address, token: tokenData.token, id: accountData.id };
   } catch (error) {
     console.error("Mail service error:", error);
     throw error;
@@ -112,5 +113,22 @@ export const markMessageSeen = async (token: string, id: string): Promise<boolea
   } catch (error) {
     console.error("Failed to mark message as seen", error);
     return false;
+  }
+};
+
+export const getAccountDetails = async (token: string): Promise<AccountDetails | null> => {
+  try {
+    const res = await fetch(`${API_BASE}/me`, {
+       headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return {
+      address: data.address,
+      quota: data.quota,
+      used: data.used
+    };
+  } catch (error) {
+    return null;
   }
 };

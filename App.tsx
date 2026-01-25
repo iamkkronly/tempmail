@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Mailbox, MailMessage, AppView } from './types';
-import { createAccount, getMessages, deleteMessage, markMessageSeen } from './services/mailService';
+import { Mailbox, MailMessage, AppView, AccountDetails } from './types';
+import { createAccount, getMessages, deleteMessage, markMessageSeen, getAccountDetails } from './services/mailService';
 import AddressBar from './components/AddressBar';
 import InboxList from './components/InboxList';
 import EmailView from './components/EmailView';
-import { Ghost, Shield, Zap, Lock, Bell, CheckCircle } from 'lucide-react';
+import { Ghost, Shield, Zap, Lock, Bell, CheckCircle, Database, Keyboard } from 'lucide-react';
 
 const STORAGE_KEY = 'ghostmail_account_v1';
 
 const App: React.FC = () => {
   const [mailbox, setMailbox] = useState<Mailbox | null>(null);
+  const [accountInfo, setAccountInfo] = useState<AccountDetails | null>(null);
   const [messages, setMessages] = useState<MailMessage[]>([]);
   const [view, setView] = useState<AppView>(AppView.INBOX);
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
@@ -18,10 +19,38 @@ const App: React.FC = () => {
   const [toast, setToast] = useState<{message: string, type: 'success' | 'info'} | null>(null);
 
   // Show Toast
-  const showToast = (message: string, type: 'success' | 'info' = 'success') => {
+  const showToast = useCallback((message: string, type: 'success' | 'info' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
-  };
+  }, []);
+
+  // Request Notification Permission
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input
+      if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return;
+
+      if (e.key === 'r' || e.key === 'R') {
+         // Refresh logic could go here but we use auto-poll mostly.
+         // Maybe force reload page or just toast?
+      }
+
+      if (e.key === 'Escape') {
+        if (view === AppView.EMAIL_DETAIL) {
+          handleBack();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [view]);
 
   // Generate a brand new account
   const generateNewIdentity = useCallback(async () => {
@@ -31,6 +60,7 @@ const App: React.FC = () => {
       setMailbox(box);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(box));
       setMessages([]);
+      setAccountInfo(null);
       setView(AppView.INBOX);
       setSelectedEmailId(null);
       showToast('New secure identity created', 'success');
@@ -39,7 +69,7 @@ const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   // Initial load: Restore from storage or create new
   useEffect(() => {
@@ -59,29 +89,43 @@ const App: React.FC = () => {
     generateNewIdentity();
   }, [generateNewIdentity]);
 
-  // Polling for emails
+  // Polling for emails and account info
   useEffect(() => {
     if (!mailbox) return;
 
-    const fetchMessages = async () => {
-      // Background poll - update silently
+    const fetchData = async () => {
+      // 1. Get Messages
       const msgs = await getMessages(mailbox.token);
       
-      // Basic check for new messages to notify (very simple logic)
       setMessages(prev => {
+        // Detect new messages
         if (msgs.length > prev.length && prev.length > 0) {
-           // Could trigger sound or toast here if desired
+           const newCount = msgs.length - prev.length;
+           const latest = msgs[0];
+           showToast(`${newCount} new message${newCount > 1 ? 's' : ''} received`, 'info');
+           
+           // Browser Notification
+           if (document.hidden && Notification.permission === 'granted') {
+             new Notification('New GhostMail', {
+               body: `From: ${latest.from}\n${latest.subject}`,
+               icon: '/vite.svg' // Fallback icon
+             });
+           }
         }
         return msgs;
       });
+
+      // 2. Get Account Usage (Quota)
+      const info = await getAccountDetails(mailbox.token);
+      if (info) setAccountInfo(info);
     };
 
     setInboxLoading(true);
-    fetchMessages().then(() => setInboxLoading(false)); // Initial explicit fetch
+    fetchData().then(() => setInboxLoading(false)); // Initial explicit fetch
     
-    const interval = setInterval(fetchMessages, 5000); // Poll every 5s
+    const interval = setInterval(fetchData, 5000); // Poll every 5s
     return () => clearInterval(interval);
-  }, [mailbox]);
+  }, [mailbox, showToast]);
 
   const handleSelectEmail = async (id: string) => {
     // Optimistically mark as seen in UI
@@ -114,8 +158,17 @@ const App: React.FC = () => {
     }
   };
 
+  // Helper to format bytes
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-100 font-sans selection:bg-brand-500/30 overflow-x-hidden relative">
+    <div className="min-h-screen bg-[#020617] text-slate-100 font-sans selection:bg-brand-500/30 overflow-x-hidden relative flex flex-col">
       
       {/* Background Ambience */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
@@ -158,10 +211,10 @@ const App: React.FC = () => {
         </div>
       </nav>
 
-      <main className="relative z-10 max-w-6xl mx-auto px-4 py-8 space-y-8">
+      <main className="relative z-10 max-w-6xl mx-auto px-4 py-8 space-y-8 flex-grow">
         
         {/* Address Generator */}
-        <section className="transform transition-all duration-500 hover:scale-[1.01]">
+        <section className="transform transition-all duration-500 hover:scale-[1.005]">
           <AddressBar 
             mailbox={mailbox} 
             onRefresh={generateNewIdentity} 
@@ -192,14 +245,31 @@ const App: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800/50 py-10 mt-12 text-center text-slate-600 text-sm relative z-10 bg-slate-900/30">
-         <div className="max-w-2xl mx-auto space-y-4">
-            <p className="font-medium text-slate-500">© {new Date().getFullYear()} GhostMail AI.</p>
-            <p className="text-xs max-w-md mx-auto">
-              Temporary email service provided for testing and privacy purposes. 
-              Emails are automatically deleted after a period of time. 
-              Powered by Google Gemini for intelligent analysis.
-            </p>
+      <footer className="border-t border-slate-800/50 py-8 mt-auto text-slate-600 text-sm relative z-10 bg-slate-900/30">
+         <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="text-center md:text-left">
+              <p className="font-medium text-slate-500">© {new Date().getFullYear()} GhostMail AI.</p>
+              <p className="text-xs mt-1 text-slate-600">Anonymous & Encrypted Temporary Email.</p>
+            </div>
+            
+            <div className="flex items-center gap-6">
+              {/* Stats / Quota */}
+              {accountInfo && (
+                <div className="hidden md:flex items-center gap-3 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
+                   <Database className="w-3 h-3 text-brand-400" />
+                   <div className="flex items-center gap-1 text-xs font-mono">
+                     <span className="text-slate-300">{formatBytes(accountInfo.used)}</span>
+                     <span className="text-slate-600">/</span>
+                     <span className="text-slate-500">{formatBytes(accountInfo.quota)}</span>
+                   </div>
+                </div>
+              )}
+              
+              <div className="hidden md:flex items-center gap-2 text-[10px] text-slate-600 font-mono border border-slate-800 rounded px-2 py-1">
+                 <Keyboard className="w-3 h-3" />
+                 <span>ESC to Back</span>
+              </div>
+            </div>
          </div>
       </footer>
     </div>

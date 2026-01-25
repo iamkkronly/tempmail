@@ -15,6 +15,13 @@ export interface FullMailMessage extends MailMessage {
 export interface Mailbox {
   address: string;
   token: string;
+  id?: string; // Account ID might be needed for some operations
+}
+
+export interface AccountDetails {
+  address: string;
+  quota: number;
+  used: number;
 }
 
 export enum AppView {
