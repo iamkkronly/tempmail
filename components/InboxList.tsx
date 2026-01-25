@@ -4,7 +4,7 @@ import { Mail, ChevronRight, Clock } from 'lucide-react';
 
 interface InboxListProps {
   messages: MailMessage[];
-  onSelect: (id: number) => void;
+  onSelect: (id: string) => void;
   loading: boolean;
 }
 
@@ -12,7 +12,7 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading }) =>
   if (messages.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-96 text-slate-500 border border-dashed border-slate-800 rounded-2xl bg-slate-900/30">
-        <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mb-6 animate-pulse-slow">
+        <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mb-6">
           <Mail className="w-8 h-8 text-slate-600" />
         </div>
         <h3 className="text-xl font-semibold text-slate-300 mb-2">Inbox is Empty</h3>
@@ -44,6 +44,7 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading }) =>
                   {msg.from}
                 </p>
                 <p className="text-sm text-slate-300 truncate">{msg.subject || '(No Subject)'}</p>
+                <p className="text-xs text-slate-500 truncate mt-1">{msg.intro}</p>
               </div>
             </div>
             <div className="flex flex-col items-end space-y-1 ml-4">

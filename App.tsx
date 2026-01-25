@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Mailbox, MailMessage, AppView } from './types';
-import { generateRandomAddress, checkInbox, getMockMessages } from './services/mailService';
+import { createAccount, getMessages } from './services/mailService';
 import AddressBar from './components/AddressBar';
 import InboxList from './components/InboxList';
 import EmailView from './components/EmailView';
@@ -10,20 +10,26 @@ const App: React.FC = () => {
   const [mailbox, setMailbox] = useState<Mailbox | null>(null);
   const [messages, setMessages] = useState<MailMessage[]>([]);
   const [view, setView] = useState<AppView>(AppView.INBOX);
-  const [selectedEmailId, setSelectedEmailId] = useState<number | null>(null);
+  const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [inboxLoading, setInboxLoading] = useState(false);
 
   // Initialize Mailbox
   const initMailbox = useCallback(async () => {
     setLoading(true);
-    const box = await generateRandomAddress();
-    setMailbox(box);
-    setMessages([]);
-    setView(AppView.INBOX);
-    setLoading(false);
+    try {
+      const box = await createAccount();
+      setMailbox(box);
+      setMessages([]);
+      setView(AppView.INBOX);
+    } catch (e) {
+      console.error("Failed to init mailbox", e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  // Initial load
   useEffect(() => {
     initMailbox();
   }, [initMailbox]);
@@ -34,19 +40,8 @@ const App: React.FC = () => {
 
     const fetchMessages = async () => {
       setInboxLoading(true);
-      const msgs = await checkInbox(mailbox.login, mailbox.domain);
-      
-      // If API returns empty (or failed), maybe merge with existing if valid, 
-      // but for this specific API, it returns full list.
-      // Note: If 1secmail is blocked or down, we might want to inject mock data for the reviewer to see UI.
-      // This is a "Simulation" safeguard.
-      if (msgs.length === 0 && messages.length === 0 && document.location.hostname === 'localhost') {
-         // Optional: Inject mock data if on localhost and empty to demonstrate UI
-         // setMessages(getMockMessages());
-      } else {
-         setMessages(msgs);
-      }
-      
+      const msgs = await getMessages(mailbox.token);
+      setMessages(msgs);
       setInboxLoading(false);
     };
 
@@ -56,7 +51,7 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [mailbox]);
 
-  const handleSelectEmail = (id: number) => {
+  const handleSelectEmail = (id: string) => {
     setSelectedEmailId(id);
     setView(AppView.EMAIL_DETAIL);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -86,9 +81,6 @@ const App: React.FC = () => {
             </div>
              <div className="flex items-center space-x-1 hover:text-brand-400 transition-colors">
                <Zap className="w-4 h-4" /> <span>Fast</span>
-            </div>
-            <div className="bg-slate-800 px-3 py-1 rounded-full border border-slate-700 text-xs">
-              Powered by Gemini 2.0
             </div>
           </div>
         </div>
@@ -127,8 +119,7 @@ const App: React.FC = () => {
 
       {/* Footer */}
       <footer className="border-t border-slate-800 py-8 mt-12 text-center text-slate-600 text-sm">
-         <p>© {new Date().getFullYear()} GhostMail AI. Anonymous. Encrypted. Intelligent.</p>
-         <p className="mt-2 text-xs text-slate-700">Do not use for illegal activities. We are not responsible for lost data.</p>
+         <p>© {new Date().getFullYear()} GhostMail AI. Anonymous. Encrypted.</p>
       </footer>
     </div>
   );

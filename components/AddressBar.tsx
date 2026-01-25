@@ -32,17 +32,19 @@ const AddressBar: React.FC<AddressBarProps> = ({ mailbox, onRefresh, loading }) 
             <input
               type="text"
               readOnly
-              value={mailbox?.address || 'Generating...'}
+              value={mailbox?.address || 'Click New Address to start...'}
               className="w-full bg-slate-950 border border-slate-700 text-white text-lg md:text-xl font-mono py-4 pl-6 pr-16 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/50 transition-all"
             />
             <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
-              <button
-                onClick={handleCopy}
-                className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors"
-                title="Copy to clipboard"
-              >
-                {copied ? <Check className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5" />}
-              </button>
+              {mailbox && (
+                <button
+                  onClick={handleCopy}
+                  className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors"
+                  title="Copy to clipboard"
+                >
+                  {copied ? <Check className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5" />}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -60,8 +62,6 @@ const AddressBar: React.FC<AddressBarProps> = ({ mailbox, onRefresh, loading }) 
       <div className="mt-4 flex items-center space-x-2 text-xs text-slate-500">
         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
         <span>Auto-refreshing inbox every 5s</span>
-        <span className="text-slate-600">|</span>
-        <span>Messages are deleted after 24h</span>
       </div>
     </div>
   );

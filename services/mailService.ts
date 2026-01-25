@@ -1,86 +1,84 @@
 import { MailMessage, FullMailMessage, Mailbox } from '../types';
 
-const API_BASE = 'https://www.1secmail.com/api/v1/';
+const API_BASE = 'https://api.mail.tm';
 
-// Helper to bypass CORS using a proxy
-const fetchWithCORS = async (url: string) => {
-  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-  const response = await fetch(proxyUrl);
-  if (!response.ok) {
-    throw new Error(`API Error: ${response.status}`);
+export const createAccount = async (): Promise<Mailbox> => {
+  try {
+    // 1. Get Domain
+    const domainRes = await fetch(`${API_BASE}/domains`);
+    const domainData = await domainRes.json();
+    if (!domainData['hydra:member']?.[0]) throw new Error('No domains available');
+    const domain = domainData['hydra:member'][0].domain;
+
+    // 2. Generate Credentials
+    const address = `ghost_${Date.now()}@${domain}`;
+    const password = 'password123';
+
+    // 3. Register Account
+    const regRes = await fetch(`${API_BASE}/accounts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address, password })
+    });
+    
+    if (!regRes.ok) throw new Error('Failed to register account');
+
+    // 4. Get Auth Token
+    const tokenRes = await fetch(`${API_BASE}/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address, password })
+    });
+    const tokenData = await tokenRes.json();
+    
+    if (!tokenData.token) throw new Error('Failed to get access token');
+
+    return { address, token: tokenData.token };
+  } catch (error) {
+    console.error("Mail service error:", error);
+    throw error;
   }
-  return response.json();
 };
 
-export const generateRandomAddress = async (): Promise<Mailbox> => {
+export const getMessages = async (token: string): Promise<MailMessage[]> => {
   try {
-    const data = await fetchWithCORS(`${API_BASE}?action=genRandomMailbox&count=1`);
-    if (Array.isArray(data) && data.length > 0) {
-        const address = data[0];
-        const [login, domain] = address.split('@');
-        return { login, domain, address };
-    }
-    throw new Error("Invalid address format received");
+    const res = await fetch(`${API_BASE}/messages`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) return [];
+    
+    const data = await res.json();
+    return (data['hydra:member'] || []).map((msg: any) => ({
+      id: msg.id,
+      from: msg.from.address,
+      subject: msg.subject,
+      date: msg.createdAt,
+      intro: msg.intro
+    }));
   } catch (error) {
-    console.error("Failed to generate mailbox, using fallback", error);
-    // Fallback if API fails completely
-    const fallbackLogin = `ghost_${Math.floor(Math.random() * 100000)}`;
-    const fallbackDomain = '1secmail.com';
-    return {
-      login: fallbackLogin,
-      domain: fallbackDomain,
-      address: `${fallbackLogin}@${fallbackDomain}`
-    };
-  }
-};
-
-export const checkInbox = async (login: string, domain: string): Promise<MailMessage[]> => {
-  try {
-    const data = await fetchWithCORS(`${API_BASE}?action=getMessages&login=${login}&domain=${domain}`);
-    return data as MailMessage[];
-  } catch (error) {
-    console.error("Failed to fetch inbox", error);
+    console.error("Failed to fetch messages", error);
     return [];
   }
 };
 
-export const getMessageContent = async (login: string, domain: string, id: number): Promise<FullMailMessage | null> => {
+export const getMessageContent = async (token: string, id: string): Promise<FullMailMessage | null> => {
   try {
-    const data = await fetchWithCORS(`${API_BASE}?action=readMessage&login=${login}&domain=${domain}&id=${id}`);
-    return data as FullMailMessage;
+    const res = await fetch(`${API_BASE}/messages/${id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) return null;
+    
+    const data = await res.json();
+    return {
+      id: data.id,
+      from: data.from.address,
+      subject: data.subject,
+      date: data.createdAt,
+      text: data.text || '',
+      html: data.html ? [data.html] : []
+    };
   } catch (error) {
     console.error("Failed to fetch message content", error);
     return null;
   }
-};
-
-// Mock data generator for testing or if API is blocked by CORS/Rate limits
-export const getMockMessages = (): MailMessage[] => {
-  return [
-    { id: 101, from: 'newsletter@tech-daily.com', subject: 'Your Daily Tech Digest', date: new Date().toISOString() },
-    { id: 102, from: 'security@bank-alert.com', subject: 'URGENT: Verify your account now', date: new Date().toISOString() }
-  ];
-};
-
-export const getMockMessageContent = (id: number): FullMailMessage => {
-  if (id === 102) {
-    return {
-      id: 102,
-      from: 'security@bank-alert.com',
-      subject: 'URGENT: Verify your account now',
-      date: new Date().toISOString(),
-      body: 'Please click here to verify your account immediately or it will be closed.',
-      textBody: 'Please click here to verify your account immediately or it will be closed.',
-      htmlBody: '<p>Please click <a href="#">here</a> to verify your account immediately or it will be closed.</p>'
-    }
-  }
-  return {
-    id: 101,
-    from: 'newsletter@tech-daily.com',
-    subject: 'Your Daily Tech Digest',
-    date: new Date().toISOString(),
-    body: 'Here are the top stories for today...',
-    textBody: 'Here are the top stories for today...',
-    htmlBody: '<h1>Top Stories</h1><p>Here are the top stories for today...</p>'
-  };
 };

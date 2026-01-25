@@ -1,21 +1,19 @@
 export interface MailMessage {
-  id: number;
+  id: string;
   from: string;
   subject: string;
   date: string;
+  intro?: string;
 }
 
 export interface FullMailMessage extends MailMessage {
-  body: string;
-  textBody: string;
-  htmlBody: string;
+  text: string;
+  html: string[];
 }
 
-export interface AIAnalysisResult {
-  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
-  summary: string;
-  actionableItems: string[];
-  phishingScore: number; // 0-100
+export interface Mailbox {
+  address: string;
+  token: string;
 }
 
 export enum AppView {
@@ -23,8 +21,9 @@ export enum AppView {
   EMAIL_DETAIL = 'EMAIL_DETAIL',
 }
 
-export interface Mailbox {
-  login: string;
-  domain: string;
-  address: string;
+export interface AIAnalysisResult {
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+  summary: string;
+  actionableItems: string[];
+  phishingScore: number;
 }

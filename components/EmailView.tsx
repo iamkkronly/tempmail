@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { FullMailMessage, Mailbox } from '../types';
-import { getMessageContent, getMockMessageContent } from '../services/mailService';
-import { ArrowLeft, Trash2, Download, ExternalLink, AlertTriangle } from 'lucide-react';
-import GeminiPanel from './GeminiPanel';
+import { getMessageContent } from '../services/mailService';
+import { ArrowLeft, Trash2, Download } from 'lucide-react';
 
 interface EmailViewProps {
-  id: number;
+  id: string;
   mailbox: Mailbox;
   onBack: () => void;
 }
@@ -17,14 +16,7 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack }) => {
   useEffect(() => {
     const fetchEmail = async () => {
       setLoading(true);
-      let data = await getMessageContent(mailbox.login, mailbox.domain, id);
-      // Fallback for demo if API fails/returns nothing for this ID (common with 1secmail sometimes delaying content)
-      if (!data) {
-         // Try checking if it's a simulated ID from our mock fallback
-         if (id === 101 || id === 102) {
-             data = getMockMessageContent(id);
-         }
-      }
+      const data = await getMessageContent(mailbox.token, id);
       setEmail(data);
       setLoading(false);
     };
@@ -35,7 +27,7 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack }) => {
     return (
       <div className="flex flex-col items-center justify-center h-96 space-y-4">
         <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-slate-400">Decrypting message...</p>
+        <p className="text-slate-400">Loading message...</p>
       </div>
     );
   }
@@ -48,6 +40,9 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack }) => {
       </div>
     );
   }
+
+  // Determine content to show (HTML prefers, then Text)
+  const content = email.html && email.html.length > 0 ? email.html[0] : email.text;
 
   return (
     <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl">
@@ -88,9 +83,6 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack }) => {
           </div>
         </div>
 
-        {/* Gemini Integration */}
-        <GeminiPanel email={email} />
-
         {/* Email Body */}
         <div className="bg-white rounded-lg p-1 min-h-[300px] border border-slate-700">
            {/* Sandbox iframe for security */}
@@ -105,18 +97,13 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack }) => {
                    </style>
                  </head>
                  <body>
-                   ${email.htmlBody || email.body}
+                   ${content}
                  </body>
                </html>
              `}
              className="w-full h-[500px] rounded"
              sandbox="allow-popups allow-popups-to-escape-sandbox" 
            />
-        </div>
-        
-        <div className="flex items-center justify-center space-x-2 text-xs text-slate-500 pt-4">
-           <AlertTriangle className="w-4 h-4 text-yellow-500" />
-           <span>Links in temporary emails can be dangerous. Use Gemini Analysis before clicking.</span>
         </div>
       </div>
     </div>

@@ -13,7 +13,7 @@ export const analyzeEmail = async (email: FullMailMessage): Promise<AIAnalysisRe
     
     Email From: ${email.from}
     Email Subject: ${email.subject}
-    Email Body: ${email.textBody || email.body}
+    Email Body: ${email.text}
     
     Provide the output in strict JSON format matching the following schema:
     {
@@ -67,7 +67,7 @@ export const draftReply = async (email: FullMailMessage, tone: string): Promise<
     
     From: ${email.from}
     Subject: ${email.subject}
-    Content: ${email.textBody}
+    Content: ${email.text}
     
     The reply should be concise and professional (unless specified otherwise).
   `;
