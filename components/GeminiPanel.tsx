@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AIAnalysisResult, FullMailMessage } from '../types';
 import { analyzeEmail, draftReply } from '../services/geminiService';
-import { ShieldAlert, ShieldCheck, Sparkles, Bot, PenTool } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, Sparkles, Bot, PenTool, Volume2 } from 'lucide-react';
 
 interface GeminiPanelProps {
   email: FullMailMessage;
@@ -26,6 +26,14 @@ const GeminiPanel: React.FC<GeminiPanelProps> = ({ email }) => {
     const result = await draftReply(email, tone);
     setReply(result);
     setReplyLoading(false);
+  };
+
+  const handleSpeakSummary = () => {
+    if (!analysis) return;
+    window.speechSynthesis.cancel();
+    const text = `Security Risk Level: ${analysis.riskLevel}. Summary: ${analysis.summary}`;
+    const utterance = new SpeechSynthesisUtterance(text);
+    window.speechSynthesis.speak(utterance);
   };
 
   if (loading) {
@@ -94,7 +102,12 @@ const GeminiPanel: React.FC<GeminiPanelProps> = ({ email }) => {
 
           <div className="space-y-3">
             <div>
-              <h4 className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">Summary</h4>
+              <div className="flex items-center justify-between mb-1">
+                 <h4 className="text-xs uppercase tracking-wider text-slate-500 font-bold">Summary</h4>
+                 <button onClick={handleSpeakSummary} className="text-slate-500 hover:text-brand-400" title="Listen to summary">
+                    <Volume2 className="w-3 h-3" />
+                 </button>
+              </div>
               <p className="text-slate-300 text-sm leading-relaxed">{analysis.summary}</p>
             </div>
             

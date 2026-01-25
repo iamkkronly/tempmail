@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { FullMailMessage, Mailbox } from '../types';
 import { getMessageContent } from '../services/mailService';
-import { ArrowLeft, Trash2, Download, Code, Eye, Sparkles } from 'lucide-react';
+import { ArrowLeft, Trash2, Download, Code, Eye, Sparkles, Printer, Volume2, StopCircle } from 'lucide-react';
 import GeminiPanel from './GeminiPanel';
 
 interface EmailViewProps {
@@ -16,6 +16,7 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'visual' | 'source'>('visual');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   useEffect(() => {
     const fetchEmail = async () => {
@@ -25,13 +26,17 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
       setLoading(false);
     };
     fetchEmail();
+    
+    // Cleanup speech on unmount
+    return () => {
+      window.speechSynthesis.cancel();
+    };
   }, [id, mailbox]);
 
   const handleDelete = async () => {
     if (confirm('Are you sure you want to delete this email permanently?')) {
       setIsDeleting(true);
       await onDelete(id);
-      // Wait a tick or just go back, parent handles logic
       onBack();
     }
   };
@@ -46,6 +51,60 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
+  };
+
+  const handlePrint = () => {
+    if (!email) return;
+    const content = email.html && email.html.length > 0 ? email.html[0] : email.text;
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>${email.subject}</title>
+            <style>
+              body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
+              img { max-width: 100%; }
+            </style>
+          </head>
+          <body>
+            <h1>${email.subject}</h1>
+            <p><strong>From:</strong> ${email.from}<br><strong>Date:</strong> ${new Date(email.date).toLocaleString()}</p>
+            <hr>
+            ${content}
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+      printWindow.close();
+    }
+  };
+
+  const handleSpeak = () => {
+    if (!email) return;
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+
+    const text = new DOMParser().parseFromString(
+      email.html && email.html.length > 0 ? email.html[0] : email.text, 
+      'text/html'
+    ).body.textContent || email.text;
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.onend = () => setIsSpeaking(false);
+    
+    // Select a decent voice if available
+    const voices = window.speechSynthesis.getVoices();
+    const preferredVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google')) || voices[0];
+    if (preferredVoice) utterance.voice = preferredVoice;
+
+    window.speechSynthesis.speak(utterance);
+    setIsSpeaking(true);
   };
 
   if (loading) {
@@ -93,6 +152,21 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
           </button>
           
           <div className="flex space-x-1 flex-shrink-0">
+             <button 
+              onClick={handleSpeak}
+              className={`p-2 rounded-lg transition-colors ${isSpeaking ? 'text-brand-400 bg-brand-500/10 animate-pulse' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`} 
+              title={isSpeaking ? "Stop Reading" : "Read Aloud"}
+            >
+              {isSpeaking ? <StopCircle className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            </button>
+             <button 
+              onClick={handlePrint}
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors hidden sm:block" 
+              title="Print Email"
+            >
+              <Printer className="w-4 h-4" />
+            </button>
+            <div className="w-px h-6 bg-slate-700 mx-2 self-center hidden sm:block"></div>
             <button 
               onClick={() => setViewMode(viewMode === 'visual' ? 'source' : 'visual')}
               className={`p-2 rounded-lg transition-colors flex items-center gap-2 text-xs font-medium px-3 ${viewMode === 'source' ? 'bg-brand-500/10 text-brand-400' : 'text-slate-400 hover:bg-slate-800'}`}
