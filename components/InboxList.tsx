@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { MailMessage } from '../types';
-import { Mail, ChevronRight, Clock, Search, X, Filter, RefreshCw, Trash2, CheckCheck, KeyRound } from 'lucide-react';
+import { Mail, ChevronRight, Clock, Search, X, Filter, RefreshCw, Trash2, CheckCheck, KeyRound, Copy, Square, CheckSquare } from 'lucide-react';
 
 interface InboxListProps {
   messages: MailMessage[];
@@ -9,10 +9,19 @@ interface InboxListProps {
   onRefresh: () => void;
   onDelete: (id: string) => void;
   onMarkSeen: (id: string) => void;
+  onBulkDelete?: (ids: string[]) => void;
+  onBulkMarkSeen?: (ids: string[]) => void;
 }
 
-const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRefresh, onDelete, onMarkSeen }) => {
+const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRefresh, onDelete, onMarkSeen, onBulkDelete, onBulkMarkSeen }) => {
   const [search, setSearch] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  // Clear selections when messages change significantly
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [messages.length]);
 
   const filteredMessages = useMemo(() => {
     if (!search) return messages;
@@ -24,18 +33,56 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
     );
   }, [messages, search]);
 
+  const toggleSelection = (id: string) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setSelectedIds(newSet);
+  };
+
+  const toggleAll = () => {
+    if (selectedIds.size === filteredMessages.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredMessages.map(m => m.id)));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (onBulkDelete && selectedIds.size > 0) {
+      if (confirm(`Delete ${selectedIds.size} messages?`)) {
+        onBulkDelete(Array.from(selectedIds));
+        setSelectedIds(new Set());
+      }
+    }
+  };
+
+  const handleBulkRead = () => {
+    if (onBulkMarkSeen && selectedIds.size > 0) {
+      onBulkMarkSeen(Array.from(selectedIds));
+      setSelectedIds(new Set());
+    }
+  };
+
   // Extract verification codes (4-8 digits)
   const getVerificationCode = (msg: MailMessage): string | null => {
     const textToCheck = `${msg.subject} ${msg.intro || ''}`;
-    // Look for 4-8 digit patterns often used in codes
     const match = textToCheck.match(/\b\d{4,8}\b/);
     return match ? match[0] : null;
+  };
+
+  const copyCode = (code: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 2000);
   };
 
   // Skeleton Loader Component
   const SkeletonItem = () => (
     <div className="relative overflow-hidden rounded-xl p-4 border border-slate-800 bg-slate-900/30 mb-2">
       <div className="flex items-start gap-4">
+        <div className="w-6 h-6 rounded bg-slate-800 animate-pulse"></div>
         <div className="w-12 h-12 rounded-full bg-slate-800 animate-pulse"></div>
         <div className="flex-1 space-y-2">
           <div className="w-1/3 h-4 bg-slate-800 rounded animate-pulse"></div>
@@ -47,7 +94,7 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 relative">
        {/* Header & Search */}
        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-1 mb-6">
          <div className="flex items-center gap-4">
@@ -61,6 +108,17 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
             >
               <RefreshCw className="w-4 h-4" />
             </button>
+            
+            {/* Select All Toggle */}
+            {messages.length > 0 && (
+              <button 
+                onClick={toggleAll}
+                className="flex items-center gap-2 text-xs font-medium text-slate-500 hover:text-brand-400 transition-colors ml-2"
+              >
+                {selectedIds.size === filteredMessages.length && filteredMessages.length > 0 ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                <span className="hidden sm:inline">Select All</span>
+              </button>
+            )}
          </div>
 
          {messages.length > 0 && (
@@ -86,6 +144,23 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
            </div>
          )}
        </div>
+
+       {/* Bulk Action Floating Toolbar */}
+       {selectedIds.size > 0 && (
+         <div className="sticky top-2 z-20 mx-auto max-w-lg animate-fade-in-up">
+           <div className="bg-slate-800/90 backdrop-blur-md border border-slate-600 rounded-xl shadow-2xl p-2 flex items-center justify-between px-4">
+              <span className="text-sm font-semibold text-white">{selectedIds.size} selected</span>
+              <div className="flex gap-2">
+                 <button onClick={handleBulkRead} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-emerald-600 hover:text-white text-slate-300 transition-colors text-xs font-medium">
+                    <CheckCheck className="w-3.5 h-3.5" /> Mark Read
+                 </button>
+                 <button onClick={handleBulkDelete} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-red-600 hover:text-white text-slate-300 transition-colors text-xs font-medium">
+                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                 </button>
+              </div>
+           </div>
+         </div>
+       )}
       
       {/* Loading State - Skeletons */}
       {loading && messages.length === 0 && (
@@ -121,24 +196,43 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
       )}
 
       {/* Message List */}
-      <div className="space-y-3">
+      <div className="space-y-3 pb-20">
       {filteredMessages.map((msg) => {
         const code = getVerificationCode(msg);
+        const isSelected = selectedIds.has(msg.id);
+        
         return (
           <div
             key={msg.id}
             className={`
               group relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 
-              border hover:-translate-y-1 hover:shadow-xl hover:shadow-black/50
-              ${!msg.seen 
+              border 
+              ${isSelected 
+                ? 'bg-brand-900/20 border-brand-500/50 translate-x-1' 
+                : 'hover:-translate-y-1 hover:shadow-xl hover:shadow-black/50'
+              }
+              ${!msg.seen && !isSelected
                 ? 'bg-gradient-to-r from-slate-800 to-slate-900 border-brand-500/30' 
-                : 'bg-slate-900/40 border-slate-800 hover:border-slate-600 hover:bg-slate-800/80'
+                : !isSelected 
+                   ? 'bg-slate-900/40 border-slate-800 hover:border-slate-600 hover:bg-slate-800/80'
+                   : ''
               }
             `}
+            onClick={() => onSelect(msg.id)}
           >
             {/* Click area covers everything except quick actions */}
-            <div className="p-3 sm:p-4 flex items-start justify-between gap-3 sm:gap-4" onClick={() => onSelect(msg.id)}>
+            <div className="p-3 sm:p-4 flex items-start gap-3 sm:gap-4">
               
+              {/* Checkbox (Stop propagation to prevent opening email) */}
+              <div 
+                className="pt-1.5" 
+                onClick={(e) => { e.stopPropagation(); toggleSelection(msg.id); }}
+              >
+                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-brand-500 border-brand-500 text-white' : 'border-slate-600 hover:border-slate-400 bg-slate-900/50 text-transparent'}`}>
+                   <CheckCheck className="w-3.5 h-3.5" />
+                </div>
+              </div>
+
               {/* Left Side: Avatar & Content */}
               <div className="flex items-center space-x-3 sm:space-x-4 overflow-hidden flex-1">
                 <div className={`
@@ -164,17 +258,26 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
                     )}
                   </div>
                   
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
                     <p className={`text-sm truncate ${!msg.seen ? 'text-slate-100 font-semibold' : 'text-slate-400'}`}>
                       {msg.subject || '(No Subject)'}
                     </p>
                     
-                    {/* Instant Verification Code Badge */}
+                    {/* Instant Verification Code Badge - Clickable */}
                     {code && (
-                      <div className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider animate-pulse-slow">
-                        <KeyRound className="w-3 h-3" />
-                        {code}
-                      </div>
+                      <button 
+                        onClick={(e) => copyCode(code, e)}
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider transition-all border 
+                          ${copiedCode === code 
+                             ? 'bg-emerald-500 text-white border-emerald-500' 
+                             : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 hover:scale-105'
+                          }
+                        `}
+                        title="Click to Copy Code"
+                      >
+                        {copiedCode === code ? <CheckCheck className="w-3 h-3" /> : <KeyRound className="w-3 h-3" />}
+                        {copiedCode === code ? 'COPIED' : code}
+                      </button>
                     )}
                   </div>
 

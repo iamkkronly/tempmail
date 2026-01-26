@@ -64,12 +64,12 @@ const App: React.FC = () => {
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [inboxLoading, setInboxLoading] = useState(false);
-  const [toast, setToast] = useState<{message: string, type: 'success' | 'info'} | null>(null);
+  const [toast, setToast] = useState<{message: string, type: 'success' | 'info' | 'error'} | null>(null);
   const [theme, setTheme] = useState<ThemeOption>('dark');
   const [showThemeMenu, setShowThemeMenu] = useState(false);
 
   // Show Toast
-  const showToast = useCallback((message: string, type: 'success' | 'info' = 'success') => {
+  const showToast = useCallback((message: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   }, []);
@@ -106,11 +106,7 @@ const App: React.FC = () => {
       if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return;
 
       if (e.key === 'r' || e.key === 'R') {
-         // Manual refresh logic could be triggered here if we extracted it from useEffect
-         if (view === AppView.INBOX && mailbox) {
-           // We can't easily call the fetch inside useEffect from here without refactoring, 
-           // but we added a button in UI.
-         }
+         // Manual refresh handled via button usually, but could be added here
       }
 
       if (e.key === 'Escape') {
@@ -123,11 +119,11 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [view, mailbox]);
 
-  // Generate a brand new account
-  const generateNewIdentity = useCallback(async () => {
+  // Generate a brand new account (or custom)
+  const generateNewIdentity = useCallback(async (customUser?: string, customDomain?: string) => {
     setLoading(true);
     try {
-      const box = await createAccount();
+      const box = await createAccount(customUser, customDomain);
       setMailbox(box);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(box));
       setMessages([]);
@@ -135,8 +131,9 @@ const App: React.FC = () => {
       setView(AppView.INBOX);
       setSelectedEmailId(null);
       showToast('New secure identity created', 'success');
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to create mailbox", e);
+      showToast(e.message || "Failed to generate identity", 'error');
     } finally {
       setLoading(false);
     }
@@ -257,6 +254,13 @@ const App: React.FC = () => {
     await markMessageSeen(mailbox.token, id);
   };
 
+  const handleBulkMarkSeen = async (ids: string[]) => {
+    if (!mailbox) return;
+    setMessages(msgs => msgs.map(m => ids.includes(m.id) ? { ...m, seen: true } : m));
+    await Promise.all(ids.map(id => markMessageSeen(mailbox.token, id)));
+    showToast(`Marked ${ids.length} messages as read`, 'success');
+  };
+
   const handleDeleteEmail = async (id: string) => {
     if (!mailbox) return;
     
@@ -275,6 +279,13 @@ const App: React.FC = () => {
     }
   };
 
+  const handleBulkDelete = async (ids: string[]) => {
+     if (!mailbox) return;
+     setMessages(msgs => msgs.filter(m => !ids.includes(m.id)));
+     await Promise.all(ids.map(id => deleteMessage(mailbox.token, id)));
+     showToast(`Deleted ${ids.length} messages`, 'info');
+  };
+
   // Helper to format bytes
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 B';
@@ -291,13 +302,19 @@ const App: React.FC = () => {
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
          <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-900/10 rounded-full blur-[120px] animate-pulse-slow"></div>
          <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-brand-900/10 rounded-full blur-[120px] animate-pulse-slow" style={{animationDelay: '1.5s'}}></div>
+         {/* Noise Texture Overlay */}
+         <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
       </div>
 
       {/* Toast Notification */}
       {toast && (
         <div className="fixed top-24 right-4 z-[100] animate-fade-in-left max-w-[90vw]">
-           <div className="bg-slate-800/90 backdrop-blur border border-slate-700 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3">
-              {toast.type === 'success' ? <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0" /> : <Bell className="w-5 h-5 text-brand-400 flex-shrink-0" />}
+           <div className={`backdrop-blur border px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 ${
+             toast.type === 'error' ? 'bg-red-900/90 border-red-700 text-white' : 'bg-slate-800/90 border-slate-700 text-white'
+           }`}>
+              {toast.type === 'success' ? <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0" /> : 
+               toast.type === 'error' ? <Bell className="w-5 h-5 text-white flex-shrink-0" /> :
+               <Bell className="w-5 h-5 text-brand-400 flex-shrink-0" />}
               <span className="text-sm font-medium">{toast.message}</span>
            </div>
         </div>
@@ -397,6 +414,8 @@ const App: React.FC = () => {
                onRefresh={handleManualRefresh}
                onDelete={handleDeleteEmail}
                onMarkSeen={handleMarkSeen}
+               onBulkDelete={handleBulkDelete}
+               onBulkMarkSeen={handleBulkMarkSeen}
              />
           ) : (
             mailbox && selectedEmailId && (

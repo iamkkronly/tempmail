@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Copy, RefreshCw, Check, Sparkles, QrCode, Database } from 'lucide-react';
+import { Copy, RefreshCw, Check, Sparkles, QrCode, Database, Settings2, X, ChevronDown } from 'lucide-react';
 import { Mailbox, AccountDetails } from '../types';
+import { getDomains } from '../services/mailService';
 
 interface AddressBarProps {
   mailbox: Mailbox | null;
-  onRefresh: () => void;
+  onRefresh: (username?: string, domain?: string) => Promise<void>;
   loading: boolean;
   onCopy: () => void;
   accountInfo: AccountDetails | null;
@@ -15,6 +16,13 @@ const AddressBar: React.FC<AddressBarProps> = ({ mailbox, onRefresh, loading, on
   const [showQr, setShowQr] = useState(false);
   const [progress, setProgress] = useState(0);
   const qrRef = useRef<HTMLDivElement>(null);
+  
+  // Custom Address State
+  const [isCustomMode, setIsCustomMode] = useState(false);
+  const [customUser, setCustomUser] = useState('');
+  const [domains, setDomains] = useState<string[]>([]);
+  const [selectedDomain, setSelectedDomain] = useState('');
+  const [loadingDomains, setLoadingDomains] = useState(false);
 
   // Sync animation with the 5s polling interval
   useEffect(() => {
@@ -39,6 +47,18 @@ const AddressBar: React.FC<AddressBarProps> = ({ mailbox, onRefresh, loading, on
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showQr]);
 
+  // Fetch domains when entering custom mode
+  useEffect(() => {
+    if (isCustomMode && domains.length === 0) {
+      setLoadingDomains(true);
+      getDomains().then(data => {
+        setDomains(data);
+        if (data.length > 0) setSelectedDomain(data[0]);
+        setLoadingDomains(false);
+      });
+    }
+  }, [isCustomMode]);
+
   const handleCopy = () => {
     if (mailbox) {
       navigator.clipboard.writeText(mailbox.address);
@@ -46,6 +66,12 @@ const AddressBar: React.FC<AddressBarProps> = ({ mailbox, onRefresh, loading, on
       onCopy();
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  const handleCreateCustom = async () => {
+    if (!customUser) return;
+    await onRefresh(customUser, selectedDomain);
+    setIsCustomMode(false);
   };
 
   const formatBytes = (bytes: number) => {
@@ -62,105 +88,167 @@ const AddressBar: React.FC<AddressBarProps> = ({ mailbox, onRefresh, loading, on
     <div className="relative group rounded-2xl p-[1px] bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 shadow-2xl z-20">
       <div className="absolute inset-0 bg-gradient-to-r from-brand-500/20 via-purple-500/20 to-pink-500/20 rounded-2xl blur-lg opacity-50 group-hover:opacity-100 transition duration-1000"></div>
       
-      <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl p-4 md:p-6 relative overflow-visible">
+      <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl p-4 md:p-6 relative overflow-visible transition-all duration-300">
         {/* Progress Bar (Activity Indicator) */}
-        <div className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-brand-500 to-purple-500 transition-all duration-100 ease-linear rounded-b-2xl" style={{ width: `${progress}%`, opacity: loading ? 0 : 0.5 }}></div>
+        {!isCustomMode && (
+           <div className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-brand-500 to-purple-500 transition-all duration-100 ease-linear rounded-b-2xl" style={{ width: `${progress}%`, opacity: loading ? 0 : 0.5 }}></div>
+        )}
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex-1 space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-brand-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-                <Sparkles className="w-3 h-3" /> Temporary Identity
-              </label>
-              <div className="text-[10px] text-slate-500 font-mono flex items-center gap-2">
-                 <span className={`w-2 h-2 rounded-full ${loading ? 'bg-yellow-500 animate-pulse' : 'bg-emerald-500'}`}></span>
-                 {loading ? 'CREATING...' : 'ACTIVE'}
-              </div>
-            </div>
-            
-            <div className="relative group/input flex gap-2">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  readOnly
-                  value={mailbox?.address || 'Initializing secure tunnel...'}
-                  className="w-full bg-slate-950/50 border border-slate-700/50 text-white text-lg md:text-xl font-mono py-4 pl-6 pr-12 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/50 transition-all shadow-inner"
-                />
-                <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                   {mailbox && (
-                    <button
-                      onClick={handleCopy}
-                      className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-all active:scale-95"
-                      title="Copy to clipboard"
-                    >
-                      {copied ? <Check className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5" />}
-                    </button>
-                  )}
+        {/* Normal Mode */}
+        {!isCustomMode ? (
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex-1 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-brand-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                  <Sparkles className="w-3 h-3" /> Temporary Identity
+                </label>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => setIsCustomMode(true)}
+                    className="text-[10px] flex items-center gap-1 text-slate-400 hover:text-white transition-colors bg-slate-800/50 px-2 py-1 rounded-md border border-slate-700/50"
+                  >
+                    <Settings2 className="w-3 h-3" /> Customize
+                  </button>
+                  <div className="text-[10px] text-slate-500 font-mono flex items-center gap-2">
+                     <span className={`w-2 h-2 rounded-full ${loading ? 'bg-yellow-500 animate-pulse' : 'bg-emerald-500'}`}></span>
+                     {loading ? 'CREATING...' : 'ACTIVE'}
+                  </div>
                 </div>
               </div>
+              
+              <div className="relative group/input flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    readOnly
+                    value={mailbox?.address || 'Initializing secure tunnel...'}
+                    className="w-full bg-slate-950/50 border border-slate-700/50 text-white text-lg md:text-xl font-mono py-4 pl-6 pr-12 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/50 transition-all shadow-inner"
+                  />
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                     {mailbox && (
+                      <button
+                        onClick={handleCopy}
+                        className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-all active:scale-95"
+                        title="Copy to clipboard"
+                      >
+                        {copied ? <Check className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5" />}
+                      </button>
+                    )}
+                  </div>
+                </div>
 
-              {mailbox && (
-                <div className="relative" ref={qrRef}>
-                  <button 
-                    onClick={() => setShowQr(!showQr)}
-                    className={`h-full px-4 rounded-xl border border-slate-700/50 flex items-center justify-center transition-all ${showQr ? 'bg-brand-500 text-white' : 'bg-slate-950/50 text-slate-400 hover:text-brand-400 hover:border-brand-500/30'}`}
-                    title="Show QR Code"
-                  >
-                    <QrCode className="w-6 h-6" />
-                  </button>
+                {mailbox && (
+                  <div className="relative" ref={qrRef}>
+                    <button 
+                      onClick={() => setShowQr(!showQr)}
+                      className={`h-full px-4 rounded-xl border border-slate-700/50 flex items-center justify-center transition-all ${showQr ? 'bg-brand-500 text-white' : 'bg-slate-950/50 text-slate-400 hover:text-brand-400 hover:border-brand-500/30'}`}
+                      title="Show QR Code"
+                    >
+                      <QrCode className="w-6 h-6" />
+                    </button>
 
-                  {/* QR Popover */}
-                  {showQr && (
-                    <div className="absolute top-full right-0 mt-4 p-4 bg-white rounded-2xl shadow-2xl shadow-brand-500/20 border-4 border-slate-800 animate-fade-in-up z-50 w-48 flex flex-col items-center">
-                       <div className="relative">
-                         <img 
-                           src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${mailbox.address}&bgcolor=ffffff`} 
-                           alt="QR Code" 
-                           className="w-40 h-40 rounded-lg"
-                         />
-                         <div className="absolute inset-0 border-2 border-brand-500/20 rounded-lg pointer-events-none"></div>
-                       </div>
-                       <p className="text-slate-900 text-[10px] font-bold mt-2 uppercase tracking-wider">Scan to transfer</p>
-                    </div>
-                  )}
+                    {/* QR Popover */}
+                    {showQr && (
+                      <div className="absolute top-full right-0 mt-4 p-4 bg-white rounded-2xl shadow-2xl shadow-brand-500/20 border-4 border-slate-800 animate-fade-in-up z-50 w-48 flex flex-col items-center">
+                         <div className="relative">
+                           <img 
+                             src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${mailbox.address}&bgcolor=ffffff`} 
+                             alt="QR Code" 
+                             className="w-40 h-40 rounded-lg"
+                           />
+                           <div className="absolute inset-0 border-2 border-brand-500/20 rounded-lg pointer-events-none"></div>
+                         </div>
+                         <p className="text-slate-900 text-[10px] font-bold mt-2 uppercase tracking-wider">Scan to transfer</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Storage Quota Visual */}
+              {accountInfo && (
+                <div className="flex items-center gap-3 px-1 animate-fade-in-up">
+                  <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden relative">
+                     <div 
+                       className={`h-full rounded-full transition-all duration-1000 relative ${
+                         usagePercent > 90 ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 
+                         usagePercent > 70 ? 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]' : 
+                         'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]'
+                       }`}
+                       style={{ width: `${Math.max(2, usagePercent)}%` }}
+                     >
+                       <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                     </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400 whitespace-nowrap min-w-fit">
+                     <Database className="w-3 h-3 text-slate-500" />
+                     <span className="text-slate-300">{formatBytes(accountInfo.used)}</span>
+                     <span className="text-slate-600">/</span>
+                     <span>{formatBytes(accountInfo.quota)}</span>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Storage Quota Visual */}
-            {accountInfo && (
-              <div className="flex items-center gap-3 px-1 animate-fade-in-up">
-                <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden relative">
-                   <div 
-                     className={`h-full rounded-full transition-all duration-1000 relative ${
-                       usagePercent > 90 ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 
-                       usagePercent > 70 ? 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]' : 
-                       'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]'
-                     }`}
-                     style={{ width: `${Math.max(2, usagePercent)}%` }}
-                   >
-                     <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
-                   </div>
-                </div>
-                <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400 whitespace-nowrap min-w-fit">
-                   <Database className="w-3 h-3 text-slate-500" />
-                   <span className="text-slate-300">{formatBytes(accountInfo.used)}</span>
-                   <span className="text-slate-600">/</span>
-                   <span>{formatBytes(accountInfo.quota)}</span>
-                </div>
-              </div>
-            )}
+            <button
+              onClick={() => onRefresh()}
+              disabled={loading}
+              className="flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 py-4 px-8 rounded-xl transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed h-full mt-2 md:mt-0 shadow-lg hover:shadow-xl hover:shadow-brand-900/20 whitespace-nowrap self-stretch md:self-auto"
+            >
+              <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+              <span className="font-medium">Generate New</span>
+            </button>
           </div>
-
-          <button
-            onClick={onRefresh}
-            disabled={loading}
-            className="flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 py-4 px-8 rounded-xl transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed h-full mt-2 md:mt-0 shadow-lg hover:shadow-xl hover:shadow-brand-900/20 whitespace-nowrap self-stretch md:self-auto"
-          >
-            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-            <span className="font-medium">Generate New</span>
-          </button>
-        </div>
+        ) : (
+          /* Custom Mode */
+          <div className="animate-fade-in-up space-y-4">
+             <div className="flex items-center justify-between">
+                <label className="text-brand-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                  <Settings2 className="w-3 h-3" /> Customize Address
+                </label>
+                <button 
+                  onClick={() => setIsCustomMode(false)}
+                  className="text-slate-500 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+             </div>
+             
+             <div className="flex flex-col md:flex-row gap-3">
+                <div className="flex-1 flex gap-2">
+                  <input 
+                    type="text" 
+                    placeholder="username" 
+                    value={customUser}
+                    onChange={(e) => setCustomUser(e.target.value.toLowerCase().replace(/[^a-z0-9.]/g, ''))}
+                    className="flex-1 bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-brand-500/50 outline-none font-mono"
+                    autoFocus
+                  />
+                  <div className="relative min-w-[140px] md:min-w-[180px]">
+                    <select 
+                      value={selectedDomain}
+                      onChange={(e) => setSelectedDomain(e.target.value)}
+                      className="w-full h-full appearance-none bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-brand-500/50 outline-none font-mono pr-8"
+                      disabled={loadingDomains}
+                    >
+                      {loadingDomains ? <option>Loading...</option> : domains.map(d => <option key={d} value={d}>@{d}</option>)}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                  </div>
+                </div>
+                <button
+                  onClick={handleCreateCustom}
+                  disabled={!customUser || loading}
+                  className="bg-brand-600 hover:bg-brand-500 text-white px-6 py-3 rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-brand-500/20"
+                >
+                   {loading ? 'Creating...' : 'Create Address'}
+                </button>
+             </div>
+             <p className="text-xs text-slate-500">
+               Only lowercase letters, numbers, and dots allowed. Passwords are auto-generated.
+             </p>
+          </div>
+        )}
       </div>
     </div>
   );

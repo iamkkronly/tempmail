@@ -2,16 +2,31 @@ import { MailMessage, FullMailMessage, Mailbox, AccountDetails } from '../types'
 
 const API_BASE = 'https://api.mail.tm';
 
-export const createAccount = async (): Promise<Mailbox> => {
+export const getDomains = async (): Promise<string[]> => {
   try {
-    // 1. Get Domain
-    const domainRes = await fetch(`${API_BASE}/domains`);
-    const domainData = await domainRes.json();
-    if (!domainData['hydra:member']?.[0]) throw new Error('No domains available');
-    const domain = domainData['hydra:member'][0].domain;
+    const res = await fetch(`${API_BASE}/domains`);
+    const data = await res.json();
+    return (data['hydra:member'] || []).map((d: any) => d.domain);
+  } catch (e) {
+    console.error("Failed to fetch domains", e);
+    return [];
+  }
+};
+
+export const createAccount = async (username?: string, domain?: string): Promise<Mailbox> => {
+  try {
+    let selectedDomain = domain;
+    
+    // 1. Get Domain if not provided
+    if (!selectedDomain) {
+        const domainRes = await fetch(`${API_BASE}/domains`);
+        const domainData = await domainRes.json();
+        if (!domainData['hydra:member']?.[0]) throw new Error('No domains available');
+        selectedDomain = domainData['hydra:member'][0].domain;
+    }
 
     // 2. Generate Credentials
-    const address = `ghost_${Date.now()}@${domain}`;
+    const address = username ? `${username}@${selectedDomain}` : `ghost_${Date.now()}@${selectedDomain}`;
     const password = 'password123';
 
     // 3. Register Account
@@ -21,7 +36,10 @@ export const createAccount = async (): Promise<Mailbox> => {
       body: JSON.stringify({ address, password })
     });
     
-    if (!regRes.ok) throw new Error('Failed to register account');
+    if (!regRes.ok) {
+        if (regRes.status === 422) throw new Error('Username already taken');
+        throw new Error('Failed to register account');
+    }
     const accountData = await regRes.json();
 
     // 4. Get Auth Token
