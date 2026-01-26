@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Mailbox, MailMessage, AppView, AccountDetails, ThemeOption } from './types';
 import { createAccount, getMessages, deleteMessage, markMessageSeen, getAccountDetails } from './services/mailService';
@@ -5,9 +6,9 @@ import AddressBar from './components/AddressBar';
 import InboxList from './components/InboxList';
 import EmailView from './components/EmailView';
 import Sidebar from './components/Sidebar';
-import { Shield, Zap, Lock, Bell, CheckCircle, Keyboard, Palette, Moon, Sun, Droplet, Menu } from 'lucide-react';
+import { Shield, Zap, Lock, Bell, CheckCircle, Keyboard, Palette, Moon, Sun, Droplet, Menu, HelpCircle, X } from 'lucide-react';
 
-const STORAGE_KEY = 'ghostmail_accounts_v2'; // Changed key for new schema
+const STORAGE_KEY = 'ghostmail_accounts_v2';
 const THEME_KEY = 'ghostmail_theme_v1';
 const AUTO_DELETE_DAYS = 7;
 
@@ -57,6 +58,37 @@ const THEMES: Record<ThemeOption, Record<string, string>> = {
   }
 };
 
+const ShortcutsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
+  <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+    <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-fade-in-up" onClick={e => e.stopPropagation()}>
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-xl font-bold text-white flex items-center gap-2">
+           <Keyboard className="w-5 h-5 text-brand-400" /> Shortcuts
+        </h3>
+        <button onClick={onClose} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
+      </div>
+      <div className="space-y-4">
+         <div className="flex justify-between items-center">
+            <span className="text-slate-300 text-sm">Refresh Inbox</span>
+            <span className="px-2 py-1 bg-slate-800 rounded-lg text-xs font-mono text-slate-400 border border-slate-700">R</span>
+         </div>
+         <div className="flex justify-between items-center">
+            <span className="text-slate-300 text-sm">Back to Inbox</span>
+            <span className="px-2 py-1 bg-slate-800 rounded-lg text-xs font-mono text-slate-400 border border-slate-700">Esc</span>
+         </div>
+         <div className="flex justify-between items-center">
+            <span className="text-slate-300 text-sm">Show Shortcuts</span>
+            <span className="px-2 py-1 bg-slate-800 rounded-lg text-xs font-mono text-slate-400 border border-slate-700">?</span>
+         </div>
+         <div className="flex justify-between items-center">
+            <span className="text-slate-300 text-sm">Focus Search</span>
+            <span className="px-2 py-1 bg-slate-800 rounded-lg text-xs font-mono text-slate-400 border border-slate-700">/</span>
+         </div>
+      </div>
+    </div>
+  </div>
+);
+
 const App: React.FC = () => {
   // State for multiple accounts
   const [accounts, setAccounts] = useState<Mailbox[]>([]);
@@ -75,6 +107,7 @@ const App: React.FC = () => {
   const [theme, setTheme] = useState<ThemeOption>('dark');
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   // Show Toast
   const showToast = useCallback((message: string, type: 'success' | 'info' | 'error' = 'success') => {
@@ -131,16 +164,29 @@ const App: React.FC = () => {
     }
     // If no accounts, generate one
     handleAddAccount();
-  }, []); // Only run once on mount
+  }, []); 
 
   // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return;
 
+      if (e.key === '?') setShowShortcuts(prev => !prev);
+      
       if (e.key === 'Escape') {
         if (view === AppView.EMAIL_DETAIL) {
           handleBack();
+        } else {
+          setShowShortcuts(false);
+        }
+      }
+
+      // Basic Slash to search handled by InboxList ideally, but we can prevent default if needed
+      if (e.key === '/') {
+        const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement;
+        if (searchInput) {
+          e.preventDefault();
+          searchInput.focus();
         }
       }
     };
@@ -154,13 +200,11 @@ const App: React.FC = () => {
     try {
       const box = await createAccount(customUser, customDomain);
       
-      // Ensure ID exists (fallback to random if API misses it, though it shouldn't)
       if (!box.id) box.id = Math.random().toString(36).substr(2, 9);
       
       setAccounts(prev => [...prev, box]);
       setActiveAccountId(box.id);
       
-      // Reset view context
       setMessages([]);
       setAccountInfo(null);
       setView(AppView.INBOX);
@@ -178,7 +222,6 @@ const App: React.FC = () => {
   const handleRemoveAccount = (id: string) => {
     if (accounts.length <= 1) {
       if (confirm("This is your last active identity. Replacing it with a new one?")) {
-          // Instead of removing last one leaving 0, we add a new one then remove old
           handleAddAccount().then(() => {
             setAccounts(prev => prev.filter(a => a.id !== id));
           });
@@ -190,7 +233,6 @@ const App: React.FC = () => {
       const isCurrent = activeAccountId === id;
       setAccounts(prev => prev.filter(a => a.id !== id));
       if (isCurrent) {
-         // Switch to the first available
          const remaining = accounts.filter(a => a.id !== id);
          if (remaining.length > 0) setActiveAccountId(remaining[0].id!);
       }
@@ -203,9 +245,9 @@ const App: React.FC = () => {
     setActiveAccountId(id);
     setView(AppView.INBOX);
     setSelectedEmailId(null);
-    setMessages([]); // Clear messages to prevent flash of old content
+    setMessages([]); 
     setAccountInfo(null);
-    setInboxLoading(true); // Trigger loading state
+    setInboxLoading(true); 
   };
 
   const handleExport = () => {
@@ -227,14 +269,11 @@ const App: React.FC = () => {
     showToast("Inbox backup downloaded", 'success');
   };
 
-  // Define data fetching logic separately so it can be called manually
   const fetchMailData = useCallback(async () => {
     if (!activeAccount) return;
     
-    // 1. Get Messages
     const rawMsgs = await getMessages(activeAccount.token);
     
-    // Auto-delete logic
     const now = Date.now();
     const retentionLimit = now - (AUTO_DELETE_DAYS * 24 * 60 * 60 * 1000);
     
@@ -250,7 +289,6 @@ const App: React.FC = () => {
       }
     });
 
-    // Cleanup expired in background
     if (expiredMsgs.length > 0) {
       Promise.all(expiredMsgs.map(m => deleteMessage(activeAccount.token, m.id)))
           .then(() => console.log(`Cleaned ${expiredMsgs.length} expired messages`))
@@ -258,7 +296,6 @@ const App: React.FC = () => {
     }
     
     setMessages(prev => {
-      // Robust new message detection (ID based)
       if (prev.length > 0) {
          const prevIds = new Set(prev.map(m => m.id));
          const newMsgs = activeMsgs.filter(m => !prevIds.has(m.id));
@@ -278,19 +315,17 @@ const App: React.FC = () => {
       return activeMsgs;
     });
 
-    // 2. Get Account Usage (Quota)
     const info = await getAccountDetails(activeAccount.token);
     if (info) setAccountInfo(info);
   }, [activeAccount, showToast]);
 
-  // Polling for emails and account info
   useEffect(() => {
     if (!activeAccount) return;
 
     setInboxLoading(true);
-    fetchMailData().then(() => setInboxLoading(false)); // Initial explicit fetch
+    fetchMailData().then(() => setInboxLoading(false)); 
     
-    const interval = setInterval(fetchMailData, 5000); // Poll every 5s
+    const interval = setInterval(fetchMailData, 5000); 
     return () => clearInterval(interval);
   }, [activeAccount, fetchMailData]);
 
@@ -359,6 +394,9 @@ const App: React.FC = () => {
          <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-brand-900/10 rounded-full blur-[120px] animate-pulse-slow" style={{animationDelay: '1.5s'}}></div>
          <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
       </div>
+
+      {/* Shortcuts Modal */}
+      {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
 
       {/* Toast Notification */}
       {toast && (
@@ -431,6 +469,14 @@ const App: React.FC = () => {
                 <Lock className="w-3.5 h-3.5 text-purple-500" /> <span>Private</span>
               </div>
             </div>
+
+            <button
+               onClick={() => setShowShortcuts(true)}
+               className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors hidden md:block"
+               title="Keyboard Shortcuts (?)"
+            >
+              <HelpCircle className="w-5 h-5" />
+            </button>
 
             {/* Theme Toggle */}
             <div className="relative">

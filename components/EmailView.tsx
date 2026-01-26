@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { FullMailMessage, Mailbox } from '../types';
-import { getMessageContent } from '../services/mailService';
-import { ArrowLeft, Trash2, Download, Code, Eye, Sparkles, Printer, Volume2, StopCircle } from 'lucide-react';
+import { FullMailMessage, Mailbox, Attachment } from '../types';
+import { getMessageContent, downloadAttachment } from '../services/mailService';
+import { ArrowLeft, Trash2, Download, Code, Eye, Sparkles, Printer, Volume2, StopCircle, Paperclip, File, RefreshCw } from 'lucide-react';
 import GeminiPanel from './GeminiPanel';
 
 interface EmailViewProps {
@@ -17,6 +17,7 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
   const [viewMode, setViewMode] = useState<'visual' | 'source'>('visual');
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [downloadingAttId, setDownloadingAttId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchEmail = async () => {
@@ -51,6 +52,24 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
+  };
+
+  const handleAttachmentDownload = async (att: Attachment) => {
+    setDownloadingAttId(att.id);
+    const blob = await downloadAttachment(mailbox.token, id, att.id);
+    if (blob) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = att.filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } else {
+      alert("Failed to download attachment");
+    }
+    setDownloadingAttId(null);
   };
 
   const handlePrint = () => {
@@ -105,6 +124,14 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
 
     window.speechSynthesis.speak(utterance);
     setIsSpeaking(true);
+  };
+
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
   if (loading) {
@@ -214,6 +241,31 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
               </div>
             </div>
           </div>
+
+          {/* Attachments Section */}
+          {email.attachments && email.attachments.length > 0 && (
+             <div className="mt-4 flex flex-wrap gap-2">
+               {email.attachments.map(att => (
+                 <button 
+                   key={att.id}
+                   onClick={() => handleAttachmentDownload(att)}
+                   disabled={downloadingAttId === att.id}
+                   className="flex items-center gap-2 bg-slate-800/50 hover:bg-slate-700/80 border border-slate-700/50 rounded-lg px-3 py-2 text-xs transition-all group"
+                 >
+                   {downloadingAttId === att.id ? (
+                     <RefreshCw className="w-3.5 h-3.5 animate-spin text-brand-400" />
+                   ) : (
+                     <Paperclip className="w-3.5 h-3.5 text-slate-400 group-hover:text-brand-400" />
+                   )}
+                   <div className="flex flex-col items-start">
+                     <span className="text-slate-200 font-medium truncate max-w-[150px]">{att.filename}</span>
+                     <span className="text-[10px] text-slate-500">{formatBytes(att.size)}</span>
+                   </div>
+                   <Download className="w-3.5 h-3.5 text-slate-500 group-hover:text-white ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                 </button>
+               ))}
+             </div>
+          )}
         </div>
 
         {/* Content Viewer */}

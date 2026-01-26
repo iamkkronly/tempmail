@@ -1,5 +1,6 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
-import { AIAnalysisResult, FullMailMessage } from '../types';
+import { AIAnalysisResult, FullMailMessage, InboxAnalysisResult, MailMessage } from '../types';
 
 // Helper to lazy load AI to prevent top-level crashes
 const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -55,6 +56,54 @@ export const analyzeEmail = async (email: FullMailMessage): Promise<AIAnalysisRe
       summary: 'Analysis failed due to an error. Please check your API key.',
       actionableItems: [],
       phishingScore: 50
+    };
+  }
+};
+
+export const analyzeInbox = async (messages: MailMessage[]): Promise<InboxAnalysisResult> => {
+  const ai = getAI();
+  const model = "gemini-3-flash-preview";
+  
+  // Create a condensed representation of the inbox to save tokens
+  const inboxData = messages.slice(0, 20).map(m => ({
+    from: m.from,
+    subject: m.subject,
+    snippet: m.intro || "No preview"
+  }));
+
+  const prompt = `
+    You are an AI assistant managing a temporary inbox. Analyze these emails:
+    ${JSON.stringify(inboxData)}
+
+    Tasks:
+    1. Provide a brief 1-sentence overview of the inbox status.
+    2. Categorize emails (e.g., 'Verification', 'Social', 'Spam', 'Personal').
+    3. Extract any visible codes (OTP, PIN) from subjects/snippets.
+    4. Count urgent items.
+
+    Return JSON matching this schema:
+    {
+       "overview": "string",
+       "categories": [{"name": "string", "count": number}],
+       "extractedCodes": [{"code": "string", "source": "sender name"}],
+       "urgentCount": number
+    }
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model,
+      contents: prompt,
+      config: { responseMimeType: "application/json" }
+    });
+    return JSON.parse(response.text || '{}') as InboxAnalysisResult;
+  } catch (e) {
+    console.error("Inbox analysis failed", e);
+    return {
+      overview: "Could not analyze inbox at this time.",
+      categories: [],
+      extractedCodes: [],
+      urgentCount: 0
     };
   }
 };

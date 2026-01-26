@@ -1,4 +1,5 @@
-import { MailMessage, FullMailMessage, Mailbox, AccountDetails } from '../types';
+
+import { MailMessage, FullMailMessage, Mailbox, AccountDetails, Attachment } from '../types';
 
 const API_BASE = 'https://api.mail.tm';
 
@@ -89,6 +90,17 @@ export const getMessageContent = async (token: string, id: string): Promise<Full
     if (!res.ok) return null;
     
     const data = await res.json();
+    
+    const attachments: Attachment[] = (data.attachments || []).map((att: any) => ({
+      id: att.id,
+      filename: att.filename,
+      contentType: att.contentType,
+      disposition: att.disposition,
+      transferEncoding: att.transferEncoding,
+      related: att.related,
+      size: att.size
+    }));
+
     return {
       id: data.id,
       from: data.from.address,
@@ -96,10 +108,24 @@ export const getMessageContent = async (token: string, id: string): Promise<Full
       date: data.createdAt,
       text: data.text || '',
       html: data.html ? [data.html] : [],
+      attachments,
       seen: true 
     };
   } catch (error) {
     console.error("Failed to fetch message content", error);
+    return null;
+  }
+};
+
+export const downloadAttachment = async (token: string, messageId: string, attachmentId: string): Promise<Blob | null> => {
+  try {
+    const res = await fetch(`${API_BASE}/messages/${messageId}/attachments/${attachmentId}`, {
+       headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) return null;
+    return await res.blob();
+  } catch (e) {
+    console.error("Failed to download attachment", e);
     return null;
   }
 };

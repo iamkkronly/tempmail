@@ -1,3 +1,14 @@
+
+export interface Attachment {
+  id: string;
+  filename: string;
+  contentType: string;
+  disposition: string;
+  transferEncoding: string;
+  related: boolean;
+  size: number;
+}
+
 export interface MailMessage {
   id: string;
   from: string;
@@ -10,6 +21,7 @@ export interface MailMessage {
 export interface FullMailMessage extends MailMessage {
   text: string;
   html: string[];
+  attachments: Attachment[];
 }
 
 export interface Mailbox {
@@ -34,6 +46,13 @@ export interface AIAnalysisResult {
   summary: string;
   actionableItems: string[];
   phishingScore: number;
+}
+
+export interface InboxAnalysisResult {
+  overview: string;
+  categories: { name: string; count: number }[];
+  extractedCodes: { code: string; source: string }[];
+  urgentCount: number;
 }
 
 export type ThemeOption = 'dark' | 'light' | 'blue';

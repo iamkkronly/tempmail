@@ -1,6 +1,8 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
-import { MailMessage } from '../types';
-import { Mail, ChevronRight, Clock, Search, X, Filter, RefreshCw, Trash2, CheckCheck, KeyRound, Copy, Square, CheckSquare } from 'lucide-react';
+import { MailMessage, InboxAnalysisResult } from '../types';
+import { analyzeInbox } from '../services/geminiService';
+import { Mail, ChevronRight, Clock, Search, X, Filter, RefreshCw, Trash2, CheckCheck, KeyRound, Copy, Square, CheckSquare, Sparkles, PieChart, AlertCircle } from 'lucide-react';
 
 interface InboxListProps {
   messages: MailMessage[];
@@ -17,11 +19,18 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<InboxAnalysisResult | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
 
   // Clear selections when messages change significantly
   useEffect(() => {
     setSelectedIds(new Set());
   }, [messages.length]);
+
+  // Reset analysis on reload
+  useEffect(() => {
+    setAnalysis(null);
+  }, [messages]);
 
   const filteredMessages = useMemo(() => {
     if (!search) return messages;
@@ -64,6 +73,14 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
     }
   };
 
+  const handleAnalyzeInbox = async () => {
+    if (messages.length === 0) return;
+    setAnalyzing(true);
+    const result = await analyzeInbox(messages);
+    setAnalysis(result);
+    setAnalyzing(false);
+  };
+
   // Extract verification codes (4-8 digits)
   const getVerificationCode = (msg: MailMessage): string | null => {
     const textToCheck = `${msg.subject} ${msg.intro || ''}`;
@@ -96,7 +113,7 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
   return (
     <div className="space-y-4 relative">
        {/* Header & Search */}
-       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-1 mb-6">
+       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-1 mb-4">
          <div className="flex items-center gap-4">
             <h2 className="text-slate-200 text-lg font-bold flex items-center gap-2">
               Inbox <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full text-xs font-mono">{messages.length}</span>
@@ -144,6 +161,67 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
            </div>
          )}
        </div>
+
+       {/* AI Insight Box */}
+       {messages.length > 0 && (
+        <div className="mb-4">
+          {!analysis ? (
+             <button 
+               onClick={handleAnalyzeInbox} 
+               disabled={analyzing}
+               className="w-full bg-slate-900/40 border border-slate-800 hover:border-brand-500/50 p-3 rounded-xl flex items-center justify-center gap-2 text-sm text-slate-400 hover:text-brand-300 transition-all group shadow-sm hover:shadow-md hover:shadow-brand-900/10"
+             >
+                {analyzing ? <Sparkles className="w-4 h-4 animate-spin text-brand-400" /> : <Sparkles className="w-4 h-4 group-hover:text-brand-400" />}
+                {analyzing ? "Analyzing Inbox..." : "Get AI Inbox Overview"}
+             </button>
+          ) : (
+            <div className="bg-gradient-to-br from-slate-900 to-slate-900 border border-brand-500/20 p-4 rounded-xl shadow-lg relative overflow-hidden animate-fade-in-up">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-brand-500/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none"></div>
+              
+              <div className="flex justify-between items-start mb-3">
+                 <h3 className="text-brand-300 font-bold text-sm flex items-center gap-2">
+                   <Sparkles className="w-4 h-4" /> Inbox Intelligence
+                 </h3>
+                 <button onClick={() => setAnalysis(null)} className="text-slate-600 hover:text-slate-400"><X className="w-3 h-3" /></button>
+              </div>
+
+              <p className="text-slate-300 text-sm mb-4">{analysis.overview}</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                 <div className="bg-slate-950/50 rounded-lg p-3 border border-slate-800/50">
+                    <h4 className="text-[10px] text-slate-500 uppercase font-bold mb-2 flex items-center gap-1"><PieChart className="w-3 h-3" /> Categories</h4>
+                    <div className="flex flex-wrap gap-2">
+                       {analysis.categories.map((cat, idx) => (
+                         <span key={idx} className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full border border-slate-700">{cat.name}: {cat.count}</span>
+                       ))}
+                    </div>
+                 </div>
+
+                 {analysis.extractedCodes.length > 0 && (
+                   <div className="bg-slate-950/50 rounded-lg p-3 border border-slate-800/50">
+                      <h4 className="text-[10px] text-slate-500 uppercase font-bold mb-2 flex items-center gap-1"><KeyRound className="w-3 h-3" /> Codes Found</h4>
+                      <div className="space-y-1">
+                        {analysis.extractedCodes.map((c, idx) => (
+                          <div key={idx} className="flex justify-between items-center text-xs">
+                             <span className="text-slate-400 truncate max-w-[100px]">{c.source}</span>
+                             <span onClick={(e) => copyCode(c.code, e)} className="cursor-pointer font-mono font-bold text-emerald-400 hover:bg-emerald-500/10 px-1 rounded transition-colors">{c.code}</span>
+                          </div>
+                        ))}
+                      </div>
+                   </div>
+                 )}
+              </div>
+              
+              {analysis.urgentCount > 0 && (
+                <div className="mt-3 flex items-center gap-2 text-xs text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/20">
+                   <AlertCircle className="w-3.5 h-3.5" />
+                   <span>{analysis.urgentCount} items require attention.</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+       )}
 
        {/* Bulk Action Floating Toolbar */}
        {selectedIds.size > 0 && (
