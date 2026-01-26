@@ -115,6 +115,7 @@ const App: React.FC = () => {
 
   // Audio Ref
   const notificationSound = useRef<HTMLAudioElement | null>(null);
+  const initialized = useRef(false);
 
   useEffect(() => {
     // Simple beep sound using data URI to avoid external dependencies
@@ -193,8 +194,36 @@ const App: React.FC = () => {
     localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
 
+  // Create a new account
+  const handleAddAccount = useCallback(async (customUser?: string, customDomain?: string) => {
+    setLoading(true);
+    try {
+      const box = await createAccount(customUser, customDomain);
+      
+      if (!box.id) box.id = Math.random().toString(36).substr(2, 9);
+      
+      setAccounts(prev => [...prev, box]);
+      setActiveAccountId(box.id);
+      
+      setMessages([]);
+      setAccountInfo(null);
+      setView(AppView.INBOX);
+      setSelectedEmailId(null);
+      
+      showToast('New identity active', 'success');
+    } catch (e: any) {
+      console.error("Failed to create mailbox", e);
+      showToast(e.message || "Failed to generate identity", 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
+
   // Initial load: Restore from storage or create new
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+
     const storedAccounts = localStorage.getItem(STORAGE_KEY);
     if (storedAccounts) {
       try {
@@ -211,7 +240,7 @@ const App: React.FC = () => {
     }
     // If no accounts, generate one
     handleAddAccount();
-  }, []); 
+  }, [handleAddAccount]); 
 
   // Keyboard Shortcuts
   useEffect(() => {
@@ -247,31 +276,6 @@ const App: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [view, showToast]);
-
-  // Create a new account
-  const handleAddAccount = useCallback(async (customUser?: string, customDomain?: string) => {
-    setLoading(true);
-    try {
-      const box = await createAccount(customUser, customDomain);
-      
-      if (!box.id) box.id = Math.random().toString(36).substr(2, 9);
-      
-      setAccounts(prev => [...prev, box]);
-      setActiveAccountId(box.id);
-      
-      setMessages([]);
-      setAccountInfo(null);
-      setView(AppView.INBOX);
-      setSelectedEmailId(null);
-      
-      showToast('New identity active', 'success');
-    } catch (e: any) {
-      console.error("Failed to create mailbox", e);
-      showToast(e.message || "Failed to generate identity", 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [showToast]);
 
   const handleRemoveAccount = (id: string) => {
     if (accounts.length <= 1) {
