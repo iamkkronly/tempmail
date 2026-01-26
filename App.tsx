@@ -4,9 +4,10 @@ import { createAccount, getMessages, deleteMessage, markMessageSeen, getAccountD
 import AddressBar from './components/AddressBar';
 import InboxList from './components/InboxList';
 import EmailView from './components/EmailView';
-import { Ghost, Shield, Zap, Lock, Bell, CheckCircle, Database, Keyboard, Palette, Moon, Sun, Droplet } from 'lucide-react';
+import Sidebar from './components/Sidebar';
+import { Shield, Zap, Lock, Bell, CheckCircle, Keyboard, Palette, Moon, Sun, Droplet, Menu } from 'lucide-react';
 
-const STORAGE_KEY = 'ghostmail_account_v1';
+const STORAGE_KEY = 'ghostmail_accounts_v2'; // Changed key for new schema
 const THEME_KEY = 'ghostmail_theme_v1';
 const AUTO_DELETE_DAYS = 7;
 
@@ -27,18 +28,18 @@ const THEMES: Record<ThemeOption, Record<string, string>> = {
     '--slate-950': '2 6 23',
   },
   light: {
-    '--slate-50': '2 6 23',         // Inverted: Darkest
+    '--slate-50': '2 6 23',
     '--slate-100': '15 23 42',
     '--slate-200': '30 41 59',
-    '--slate-300': '71 85 105',     // Text muted becomes dark grey
+    '--slate-300': '71 85 105',
     '--slate-400': '100 116 139',
     '--slate-500': '148 163 184',
     '--slate-600': '203 213 225',
-    '--slate-700': '226 232 240',   // Borders
-    '--slate-800': '241 245 249',   // Elements BG
-    '--slate-850': '255 255 255',   // Highlight BG
-    '--slate-900': '255 255 255',   // Panel BG
-    '--slate-950': '248 250 252',   // App BG
+    '--slate-700': '226 232 240',
+    '--slate-800': '241 245 249',
+    '--slate-850': '255 255 255',
+    '--slate-900': '255 255 255',
+    '--slate-950': '248 250 252',
   },
   blue: {
     '--slate-50': '230 240 255',
@@ -57,7 +58,13 @@ const THEMES: Record<ThemeOption, Record<string, string>> = {
 };
 
 const App: React.FC = () => {
-  const [mailbox, setMailbox] = useState<Mailbox | null>(null);
+  // State for multiple accounts
+  const [accounts, setAccounts] = useState<Mailbox[]>([]);
+  const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
+
+  // Derived state for active session
+  const activeAccount = accounts.find(a => a.id === activeAccountId) || null;
+
   const [accountInfo, setAccountInfo] = useState<AccountDetails | null>(null);
   const [messages, setMessages] = useState<MailMessage[]>([]);
   const [view, setView] = useState<AppView>(AppView.INBOX);
@@ -67,12 +74,20 @@ const App: React.FC = () => {
   const [toast, setToast] = useState<{message: string, type: 'success' | 'info' | 'error'} | null>(null);
   const [theme, setTheme] = useState<ThemeOption>('dark');
   const [showThemeMenu, setShowThemeMenu] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Show Toast
   const showToast = useCallback((message: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   }, []);
+
+  // Persist accounts
+  useEffect(() => {
+    if (accounts.length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
+    }
+  }, [accounts]);
 
   // Request Notification Permission
   useEffect(() => {
@@ -93,21 +108,35 @@ const App: React.FC = () => {
     const root = document.documentElement;
     const colors = THEMES[theme];
     Object.entries(colors).forEach(([key, value]) => {
-      // Fix: Cast value to string to resolve 'unknown' type error
       root.style.setProperty(key, value as string);
     });
     localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
 
+  // Initial load: Restore from storage or create new
+  useEffect(() => {
+    const storedAccounts = localStorage.getItem(STORAGE_KEY);
+    if (storedAccounts) {
+      try {
+        const parsedAccounts = JSON.parse(storedAccounts);
+        if (Array.isArray(parsedAccounts) && parsedAccounts.length > 0) {
+          setAccounts(parsedAccounts);
+          setActiveAccountId(parsedAccounts[0].id || null);
+          return;
+        }
+      } catch (e) {
+        console.error("Failed to restore session", e);
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    }
+    // If no accounts, generate one
+    handleAddAccount();
+  }, []); // Only run once on mount
+
   // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing in an input
       if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return;
-
-      if (e.key === 'r' || e.key === 'R') {
-         // Manual refresh handled via button usually, but could be added here
-      }
 
       if (e.key === 'Escape') {
         if (view === AppView.EMAIL_DETAIL) {
@@ -117,20 +146,27 @@ const App: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [view, mailbox]);
+  }, [view]);
 
-  // Generate a brand new account (or custom)
-  const generateNewIdentity = useCallback(async (customUser?: string, customDomain?: string) => {
+  // Create a new account
+  const handleAddAccount = useCallback(async (customUser?: string, customDomain?: string) => {
     setLoading(true);
     try {
       const box = await createAccount(customUser, customDomain);
-      setMailbox(box);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(box));
+      
+      // Ensure ID exists (fallback to random if API misses it, though it shouldn't)
+      if (!box.id) box.id = Math.random().toString(36).substr(2, 9);
+      
+      setAccounts(prev => [...prev, box]);
+      setActiveAccountId(box.id);
+      
+      // Reset view context
       setMessages([]);
       setAccountInfo(null);
       setView(AppView.INBOX);
       setSelectedEmailId(null);
-      showToast('New secure identity created', 'success');
+      
+      showToast('New identity active', 'success');
     } catch (e: any) {
       console.error("Failed to create mailbox", e);
       showToast(e.message || "Failed to generate identity", 'error');
@@ -139,30 +175,64 @@ const App: React.FC = () => {
     }
   }, [showToast]);
 
-  // Initial load: Restore from storage or create new
-  useEffect(() => {
-    const storedAccount = localStorage.getItem(STORAGE_KEY);
-    if (storedAccount) {
-      try {
-        const parsedBox = JSON.parse(storedAccount);
-        if (parsedBox && parsedBox.address && parsedBox.token) {
-          setMailbox(parsedBox);
-          return;
-        }
-      } catch (e) {
-        console.error("Failed to restore session", e);
-        localStorage.removeItem(STORAGE_KEY);
+  const handleRemoveAccount = (id: string) => {
+    if (accounts.length <= 1) {
+      if (confirm("This is your last active identity. Replacing it with a new one?")) {
+          // Instead of removing last one leaving 0, we add a new one then remove old
+          handleAddAccount().then(() => {
+            setAccounts(prev => prev.filter(a => a.id !== id));
+          });
       }
+      return;
     }
-    generateNewIdentity();
-  }, [generateNewIdentity]);
+    
+    if (confirm("Permanently destroy this identity? All messages will be lost.")) {
+      const isCurrent = activeAccountId === id;
+      setAccounts(prev => prev.filter(a => a.id !== id));
+      if (isCurrent) {
+         // Switch to the first available
+         const remaining = accounts.filter(a => a.id !== id);
+         if (remaining.length > 0) setActiveAccountId(remaining[0].id!);
+      }
+      showToast("Identity destroyed", 'info');
+    }
+  };
+
+  const handleSwitchAccount = (id: string) => {
+    if (id === activeAccountId) return;
+    setActiveAccountId(id);
+    setView(AppView.INBOX);
+    setSelectedEmailId(null);
+    setMessages([]); // Clear messages to prevent flash of old content
+    setAccountInfo(null);
+    setInboxLoading(true); // Trigger loading state
+  };
+
+  const handleExport = () => {
+    if (!activeAccount) return;
+    const data = {
+      account: activeAccount.address,
+      exportedAt: new Date().toISOString(),
+      messages: messages
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ghostmail_backup_${activeAccount.address.split('@')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("Inbox backup downloaded", 'success');
+  };
 
   // Define data fetching logic separately so it can be called manually
   const fetchMailData = useCallback(async () => {
-    if (!mailbox) return;
+    if (!activeAccount) return;
     
     // 1. Get Messages
-    const rawMsgs = await getMessages(mailbox.token);
+    const rawMsgs = await getMessages(activeAccount.token);
     
     // Auto-delete logic
     const now = Date.now();
@@ -182,7 +252,7 @@ const App: React.FC = () => {
 
     // Cleanup expired in background
     if (expiredMsgs.length > 0) {
-      Promise.all(expiredMsgs.map(m => deleteMessage(mailbox.token, m.id)))
+      Promise.all(expiredMsgs.map(m => deleteMessage(activeAccount.token, m.id)))
           .then(() => console.log(`Cleaned ${expiredMsgs.length} expired messages`))
           .catch(e => console.error("Auto-delete failed", e));
     }
@@ -209,20 +279,20 @@ const App: React.FC = () => {
     });
 
     // 2. Get Account Usage (Quota)
-    const info = await getAccountDetails(mailbox.token);
+    const info = await getAccountDetails(activeAccount.token);
     if (info) setAccountInfo(info);
-  }, [mailbox, showToast]);
+  }, [activeAccount, showToast]);
 
   // Polling for emails and account info
   useEffect(() => {
-    if (!mailbox) return;
+    if (!activeAccount) return;
 
     setInboxLoading(true);
     fetchMailData().then(() => setInboxLoading(false)); // Initial explicit fetch
     
     const interval = setInterval(fetchMailData, 5000); // Poll every 5s
     return () => clearInterval(interval);
-  }, [mailbox, fetchMailData]);
+  }, [activeAccount, fetchMailData]);
 
   const handleManualRefresh = async () => {
     setInboxLoading(true);
@@ -231,15 +301,13 @@ const App: React.FC = () => {
   };
 
   const handleSelectEmail = async (id: string) => {
-    // Optimistically mark as seen in UI
     setMessages(msgs => msgs.map(m => m.id === id ? { ...m, seen: true } : m));
     setSelectedEmailId(id);
     setView(AppView.EMAIL_DETAIL);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     
-    // API Call
-    if (mailbox) {
-       await markMessageSeen(mailbox.token, id);
+    if (activeAccount) {
+       await markMessageSeen(activeAccount.token, id);
     }
   };
 
@@ -249,66 +317,52 @@ const App: React.FC = () => {
   };
 
   const handleMarkSeen = async (id: string) => {
-    if (!mailbox) return;
+    if (!activeAccount) return;
     setMessages(msgs => msgs.map(m => m.id === id ? { ...m, seen: true } : m));
-    await markMessageSeen(mailbox.token, id);
+    await markMessageSeen(activeAccount.token, id);
   };
 
   const handleBulkMarkSeen = async (ids: string[]) => {
-    if (!mailbox) return;
+    if (!activeAccount) return;
     setMessages(msgs => msgs.map(m => ids.includes(m.id) ? { ...m, seen: true } : m));
-    await Promise.all(ids.map(id => markMessageSeen(mailbox.token, id)));
+    await Promise.all(ids.map(id => markMessageSeen(activeAccount!.token, id)));
     showToast(`Marked ${ids.length} messages as read`, 'success');
   };
 
   const handleDeleteEmail = async (id: string) => {
-    if (!mailbox) return;
-    
-    // Optimistic UI update
+    if (!activeAccount) return;
     setMessages(msgs => msgs.filter(m => m.id !== id));
-    
-    const success = await deleteMessage(mailbox.token, id);
+    const success = await deleteMessage(activeAccount.token, id);
     if (success) {
       showToast('Message deleted', 'info');
       if (selectedEmailId === id) {
         handleBack();
       }
     } else {
-      // Revert if failed (optional, but good practice)
       handleManualRefresh();
     }
   };
 
   const handleBulkDelete = async (ids: string[]) => {
-     if (!mailbox) return;
+     if (!activeAccount) return;
      setMessages(msgs => msgs.filter(m => !ids.includes(m.id)));
-     await Promise.all(ids.map(id => deleteMessage(mailbox.token, id)));
+     await Promise.all(ids.map(id => deleteMessage(activeAccount!.token, id)));
      showToast(`Deleted ${ids.length} messages`, 'info');
   };
 
-  // Helper to format bytes
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-  };
-
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-brand-500/30 overflow-x-hidden relative flex flex-col transition-colors duration-500">
+    <div className="flex h-screen bg-slate-950 text-slate-100 font-sans selection:bg-brand-500/30 overflow-hidden relative transition-colors duration-500">
       
       {/* Background Ambience */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
          <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-900/10 rounded-full blur-[120px] animate-pulse-slow"></div>
          <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-brand-900/10 rounded-full blur-[120px] animate-pulse-slow" style={{animationDelay: '1.5s'}}></div>
-         {/* Noise Texture Overlay */}
          <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
       </div>
 
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed top-24 right-4 z-[100] animate-fade-in-left max-w-[90vw]">
+        <div className="fixed top-6 right-6 z-[100] animate-fade-in-left max-w-[90vw]">
            <div className={`backdrop-blur border px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 ${
              toast.type === 'error' ? 'bg-red-900/90 border-red-700 text-white' : 'bg-slate-800/90 border-slate-700 text-white'
            }`}>
@@ -320,29 +374,61 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Navbar */}
-      <nav className="border-b border-slate-800/60 bg-slate-900/70 backdrop-blur-md sticky top-0 z-50 transition-colors duration-500">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
-          <div className="flex items-center space-x-3 cursor-pointer group min-w-0" onClick={() => window.location.reload()}>
-            <div className="bg-gradient-to-tr from-brand-600 to-indigo-600 p-2 rounded-lg shadow-lg shadow-brand-500/20 group-hover:shadow-brand-500/40 transition-shadow flex-shrink-0">
-              <Ghost className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-100 via-slate-200 to-slate-400 truncate">
-              GhostMail AI
-            </span>
+      {/* Mobile Sidebar Toggle */}
+      <div className="md:hidden fixed top-4 left-4 z-50">
+        <button 
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="p-2 bg-slate-800 rounded-lg shadow-lg border border-slate-700 text-white"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Sidebar */}
+      <div className={`
+        fixed inset-y-0 left-0 z-40 transform transition-transform duration-300 md:relative md:translate-x-0
+        ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        <Sidebar 
+          accounts={accounts}
+          activeId={activeAccountId}
+          onSelect={(id) => { handleSwitchAccount(id); setMobileMenuOpen(false); }}
+          onAdd={() => handleAddAccount()}
+          onRemove={handleRemoveAccount}
+          onExport={handleExport}
+        />
+      </div>
+      
+      {/* Overlay for mobile sidebar */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setMobileMenuOpen(false)}></div>
+      )}
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden relative z-10">
+        
+        {/* Navbar */}
+        <nav className="border-b border-slate-800/60 bg-slate-900/40 backdrop-blur-md sticky top-0 z-20 transition-colors duration-500 px-4 md:px-8 h-16 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-4 pl-10 md:pl-0">
+             {/* Breadcrumbs or Status */}
+             <div className="hidden md:flex items-center space-x-2 text-sm text-slate-500">
+                <span className="hover:text-slate-300 cursor-pointer">GhostMail</span>
+                <span>/</span>
+                <span className="text-slate-300 font-medium">{activeAccount ? 'Inbox' : 'Dashboard'}</span>
+             </div>
           </div>
           
-          <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-             {/* Desktop Nav Items */}
-            <div className="hidden md:flex items-center space-x-8 text-sm font-medium text-slate-400 mr-4">
-              <div className="flex items-center space-x-2 hover:text-emerald-400 transition-colors cursor-help" title="End-to-end encryption compatible">
-                <Shield className="w-4 h-4" /> <span>Secure</span>
+          <div className="flex items-center gap-2 sm:gap-4">
+             {/* Status Icons */}
+            <div className="hidden lg:flex items-center space-x-6 text-xs font-medium text-slate-500 mr-4">
+              <div className="flex items-center space-x-1.5" title="Encrypted">
+                <Shield className="w-3.5 h-3.5 text-emerald-500" /> <span>Secure</span>
               </div>
-              <div className="flex items-center space-x-2 hover:text-brand-400 transition-colors cursor-help" title="Instant delivery">
-                <Zap className="w-4 h-4" /> <span>Real-time</span>
+              <div className="flex items-center space-x-1.5" title="Fast">
+                <Zap className="w-3.5 h-3.5 text-brand-500" /> <span>Turbo</span>
               </div>
-              <div className="flex items-center space-x-2 hover:text-purple-400 transition-colors cursor-help" title="No logs kept">
-                <Lock className="w-4 h-4" /> <span>Anonymous</span>
+              <div className="flex items-center space-x-1.5" title="No Logs">
+                <Lock className="w-3.5 h-3.5 text-purple-500" /> <span>Private</span>
               </div>
             </div>
 
@@ -361,24 +447,21 @@ const App: React.FC = () => {
                   <div className="p-1 space-y-1">
                     <button 
                       onClick={() => { setTheme('dark'); setShowThemeMenu(false); }}
-                      className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors ${theme === 'dark' ? 'bg-slate-800 text-brand-400' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}`}
+                      className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors hover:bg-slate-800 text-slate-400"
                     >
-                      <Moon className="w-4 h-4" />
-                      <span>Dark</span>
+                      <Moon className="w-4 h-4" /> <span>Dark</span>
                     </button>
                     <button 
                       onClick={() => { setTheme('light'); setShowThemeMenu(false); }}
-                      className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors ${theme === 'light' ? 'bg-slate-800 text-brand-400' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}`}
+                      className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors hover:bg-slate-800 text-slate-400"
                     >
-                      <Sun className="w-4 h-4" />
-                      <span>Light</span>
+                      <Sun className="w-4 h-4" /> <span>Light</span>
                     </button>
                     <button 
                       onClick={() => { setTheme('blue'); setShowThemeMenu(false); }}
-                      className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors ${theme === 'blue' ? 'bg-slate-800 text-brand-400' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}`}
+                      className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors hover:bg-slate-800 text-slate-400"
                     >
-                      <Droplet className="w-4 h-4" />
-                      <span>Blue</span>
+                      <Droplet className="w-4 h-4" /> <span>Blue</span>
                     </button>
                   </div>
                 </div>
@@ -388,76 +471,54 @@ const App: React.FC = () => {
               )}
             </div>
           </div>
-        </div>
-      </nav>
+        </nav>
 
-      <main className="relative z-10 max-w-6xl mx-auto px-4 py-8 space-y-8 flex-grow">
-        
-        {/* Address Generator */}
-        <section className="transform transition-all duration-500 hover:scale-[1.005]">
-          <AddressBar 
-            mailbox={mailbox} 
-            onRefresh={generateNewIdentity} 
-            loading={loading}
-            onCopy={() => showToast('Address copied to clipboard')}
-            accountInfo={accountInfo}
-          />
-        </section>
+        {/* Scrollable Content */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 space-y-6 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+          
+          {/* Address Generator / Dashboard Header */}
+          <section className="transform transition-all duration-500 max-w-5xl mx-auto w-full">
+            <AddressBar 
+              mailbox={activeAccount} 
+              onRefresh={handleAddAccount} 
+              loading={loading}
+              onCopy={() => showToast('Address copied to clipboard')}
+              accountInfo={accountInfo}
+            />
+          </section>
 
-        {/* Content Area */}
-        <section className="min-h-[600px] animate-fade-in-up">
-          {view === AppView.INBOX ? (
-             <InboxList 
-               messages={messages} 
-               onSelect={handleSelectEmail} 
-               loading={inboxLoading}
-               onRefresh={handleManualRefresh}
-               onDelete={handleDeleteEmail}
-               onMarkSeen={handleMarkSeen}
-               onBulkDelete={handleBulkDelete}
-               onBulkMarkSeen={handleBulkMarkSeen}
-             />
-          ) : (
-            mailbox && selectedEmailId && (
-              <EmailView 
-                id={selectedEmailId} 
-                mailbox={mailbox} 
-                onBack={handleBack}
-                onDelete={handleDeleteEmail}
-              />
-            )
-          )}
-        </section>
-      </main>
+          {/* Inbox / Email View */}
+          <section className="min-h-[500px] animate-fade-in-up max-w-5xl mx-auto w-full">
+            {view === AppView.INBOX ? (
+               <InboxList 
+                 messages={messages} 
+                 onSelect={handleSelectEmail} 
+                 loading={inboxLoading}
+                 onRefresh={handleManualRefresh}
+                 onDelete={handleDeleteEmail}
+                 onMarkSeen={handleMarkSeen}
+                 onBulkDelete={handleBulkDelete}
+                 onBulkMarkSeen={handleBulkMarkSeen}
+               />
+            ) : (
+              activeAccount && selectedEmailId && (
+                <EmailView 
+                  id={selectedEmailId} 
+                  mailbox={activeAccount} 
+                  onBack={handleBack}
+                  onDelete={handleDeleteEmail}
+                />
+              )
+            )}
+          </section>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-800/50 py-8 mt-auto text-slate-600 text-sm relative z-10 bg-slate-900/30 transition-colors duration-500">
-         <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="text-center md:text-left">
-              <p className="font-medium text-slate-500">© {new Date().getFullYear()} GhostMail AI.</p>
-              <p className="text-xs mt-1 text-slate-600">Anonymous & Encrypted Temporary Email. Messages auto-delete after {AUTO_DELETE_DAYS} days.</p>
-            </div>
-            
-            <div className="flex items-center gap-6">
-              {/* Stats / Quota */}
-              {accountInfo && (
-                <div className="hidden md:flex items-center gap-3 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
-                   <Database className="w-3 h-3 text-brand-400" />
-                   <div className="flex items-center gap-1 text-xs font-mono">
-                     <span className="text-slate-300">{formatBytes(accountInfo.used)}</span>
-                     <span className="text-slate-600">/</span>
-                     <span className="text-slate-500">{formatBytes(accountInfo.quota)}</span>
-                   </div>
-                </div>
-              )}
-              
-              <div className="hidden md:flex items-center gap-2 text-[10px] text-slate-600 font-mono border border-slate-800 rounded px-2 py-1">
-                 <Keyboard className="w-3 h-3" />
-                 <span>ESC to Back</span>
-              </div>
-            </div>
-         </div>
-      </footer>
+          {/* Footer inside scroll area */}
+          <footer className="pt-8 pb-4 text-center text-slate-600 text-xs">
+              <p>© {new Date().getFullYear()} GhostMail AI. End-to-end encrypted temporary email.</p>
+          </footer>
+
+        </main>
+      </div>
     </div>
   );
 };
