@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { FullMailMessage, Mailbox, Attachment } from '../types';
 import { getMessageContent, downloadAttachment } from '../services/mailService';
-import { ArrowLeft, Trash2, Download, Code, Eye, Sparkles, Printer, Volume2, StopCircle, Paperclip, File, RefreshCw } from 'lucide-react';
-import GeminiPanel from './GeminiPanel';
+import { ArrowLeft, Trash2, Download, Code, Eye, Printer, Volume2, StopCircle, Paperclip, RefreshCw } from 'lucide-react';
 
 interface EmailViewProps {
   id: string;
@@ -163,10 +162,10 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
   const content = email.html && email.html.length > 0 ? email.html[0] : email.text;
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 h-full items-start animate-fade-in-up w-full max-w-full">
+    <div className="flex flex-col h-full items-start animate-fade-in-up w-full max-w-full">
       
-      {/* Main Email Content */}
-      <div className="flex-1 w-full max-w-full bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl flex flex-col h-auto min-h-[600px]">
+      {/* Main Email Content - Full Width */}
+      <div className="w-full bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl flex flex-col h-auto min-h-[600px]">
         
         {/* Toolbar - Responsive horizontal scroll */}
         <div className="bg-slate-900/95 backdrop-blur border-b border-slate-800 p-4 sticky top-0 z-20">
@@ -302,23 +301,6 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
           )}
         </div>
       </div>
-
-      {/* AI Sidebar */}
-      <div className="w-full lg:w-[350px] space-y-4 flex-shrink-0">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl sticky top-24">
-          <div className="flex items-center gap-2 mb-4 pb-4 border-b border-slate-800">
-            <Sparkles className="w-5 h-5 text-brand-400 flex-shrink-0" />
-            <h3 className="font-bold text-slate-200">Gemini AI Assistant</h3>
-          </div>
-          
-          <GeminiPanel email={email} />
-          
-          <div className="mt-6 pt-6 border-t border-slate-800 text-center">
-             <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Protected by GhostMail Shield</p>
-          </div>
-        </div>
-      </div>
-
     </div>
   );
 };
