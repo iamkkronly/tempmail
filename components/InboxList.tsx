@@ -14,6 +14,31 @@ interface InboxListProps {
   privacyMode?: boolean;
 }
 
+const HighlightText = ({ text, highlight }: { text: string, highlight: string }) => {
+  if (!highlight.trim() || !text) return <>{text || ''}</>;
+  const parts = text.split(new RegExp(`(${highlight})`, 'gi'));
+  return (
+    <>
+      {parts.map((part, i) => 
+        part.toLowerCase() === highlight.toLowerCase() ? 
+          <span key={i} className="bg-brand-500/40 text-brand-100 rounded px-0.5 font-medium shadow-[0_0_5px_rgba(99,102,241,0.3)]">{part}</span> : 
+          part
+      )}
+    </>
+  );
+};
+
+const formatRelativeTime = (dateStr: string) => {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  
+  if (diffInSeconds < 60) return 'Just now';
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+};
+
 const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRefresh, onDelete, onMarkSeen, onBulkDelete, onBulkMarkSeen, privacyMode = false }) => {
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -254,7 +279,7 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
                    )}
                   <div className={`flex items-center gap-2 mb-0.5 ${privacyMode ? 'opacity-20' : ''}`}>
                     <p className={`text-sm truncate transition-colors ${!msg.seen ? 'text-white font-bold' : 'text-slate-300 font-medium'}`}>
-                      {msg.from}
+                      <HighlightText text={msg.from} highlight={search} />
                     </p>
                     {!msg.seen && (
                       <span className="flex h-2 w-2 relative">
@@ -266,7 +291,7 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
                   
                   <div className={`flex flex-wrap items-center gap-2 mb-1 ${privacyMode ? 'opacity-20' : ''}`}>
                     <p className={`text-sm truncate ${!msg.seen ? 'text-slate-100 font-semibold' : 'text-slate-400'}`}>
-                      {msg.subject || '(No Subject)'}
+                      {msg.subject ? <HighlightText text={msg.subject} highlight={search} /> : '(No Subject)'}
                     </p>
                     
                     {/* Instant Verification Code Badge - Clickable */}
@@ -288,7 +313,7 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
                   </div>
 
                   <p className={`text-xs text-slate-500 truncate font-light group-hover:text-slate-400 transition-colors ${privacyMode ? 'opacity-20' : ''}`}>
-                    {msg.intro || 'No preview available...'}
+                    <HighlightText text={msg.intro || 'No preview available...'} highlight={search} />
                   </p>
                 </div>
               </div>
@@ -297,7 +322,7 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
               <div className="flex flex-col items-end space-y-3 ml-1 sm:ml-2">
                  <span className={`text-[10px] sm:text-xs flex items-center gap-1 whitespace-nowrap ${!msg.seen ? 'text-brand-300 font-medium' : 'text-slate-600'}`}>
                     <Clock className="w-3 h-3" />
-                    {new Date(msg.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                    {formatRelativeTime(msg.date)}
                  </span>
                  
                  {/* Hover Action Arrow */}

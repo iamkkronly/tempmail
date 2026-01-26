@@ -5,7 +5,7 @@ import AddressBar from './components/AddressBar';
 import InboxList from './components/InboxList';
 import EmailView from './components/EmailView';
 import Sidebar from './components/Sidebar';
-import { Shield, Zap, Lock, Bell, CheckCircle, Keyboard, Palette, Moon, Sun, Droplet, Menu, HelpCircle, X, Wifi, WifiOff, Eye, EyeOff, Volume2, VolumeX } from 'lucide-react';
+import { Shield, Zap, Lock, Bell, CheckCircle, Keyboard, Palette, Moon, Sun, Droplet, Menu, HelpCircle, X, Wifi, WifiOff, Eye, EyeOff, Volume2, VolumeX, Unlock } from 'lucide-react';
 
 const STORAGE_KEY = 'ghostmail_accounts_v2';
 const THEME_KEY = 'ghostmail_theme_v1';
@@ -80,6 +80,10 @@ const ShortcutsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
             <span className="px-2 py-1 bg-slate-800 rounded-lg text-xs font-mono text-slate-400 border border-slate-700">P</span>
          </div>
          <div className="flex justify-between items-center">
+            <span className="text-slate-300 text-sm">Lock Session</span>
+            <span className="px-2 py-1 bg-slate-800 rounded-lg text-xs font-mono text-slate-400 border border-slate-700">L</span>
+         </div>
+         <div className="flex justify-between items-center">
             <span className="text-slate-300 text-sm">Focus Search</span>
             <span className="px-2 py-1 bg-slate-800 rounded-lg text-xs font-mono text-slate-400 border border-slate-700">/</span>
          </div>
@@ -112,6 +116,7 @@ const App: React.FC = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [privacyMode, setPrivacyMode] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [isLocked, setIsLocked] = useState(false);
 
   // Audio Ref
   const notificationSound = useRef<HTMLAudioElement | null>(null);
@@ -254,6 +259,9 @@ const App: React.FC = () => {
              showToast(`Privacy Mode ${newVal ? 'Enabled' : 'Disabled'}`, 'info');
              return newVal;
           });
+      }
+      if (e.key.toLowerCase() === 'l') {
+          setIsLocked(true);
       }
       
       if (e.key === 'Escape') {
@@ -454,6 +462,26 @@ const App: React.FC = () => {
          <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
       </div>
 
+      {/* Lock Screen */}
+      {isLocked && (
+        <div className="fixed inset-0 z-[200] bg-slate-950/80 backdrop-blur-xl flex flex-col items-center justify-center space-y-6 animate-fade-in-up">
+           <div className="p-8 rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl flex flex-col items-center space-y-4 max-w-sm w-full relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-tr from-brand-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+              <div className="p-4 bg-slate-800 rounded-full ring-4 ring-slate-800/50">
+                 <Lock className="w-8 h-8 text-brand-400" />
+              </div>
+              <h2 className="text-2xl font-bold text-white tracking-tight">GhostMail Locked</h2>
+              <p className="text-slate-400 text-center text-sm">Session is secure. Unlock to access your inbox.</p>
+              <button 
+                onClick={() => setIsLocked(false)}
+                className="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-medium transition-all shadow-lg shadow-brand-500/20 flex items-center justify-center gap-2"
+              >
+                <Unlock className="w-4 h-4" /> Unlock Session
+              </button>
+           </div>
+        </div>
+      )}
+
       {/* Shortcuts Modal */}
       {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
 
@@ -533,6 +561,15 @@ const App: React.FC = () => {
               >
                 {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
               </button>
+              
+              <button 
+                onClick={() => setIsLocked(true)}
+                className={`p-1.5 rounded-md transition-all text-slate-400 hover:text-white`}
+                title="Lock Session"
+              >
+                <Lock className="w-4 h-4" />
+              </button>
+
               <div className="w-px h-4 bg-slate-700 mx-1"></div>
               <div className="px-2 flex items-center gap-1.5 text-xs font-mono">
                 {isOnline ? <Wifi className="w-3 h-3 text-emerald-400" /> : <WifiOff className="w-3 h-3 text-red-400" />}
