@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { FullMailMessage, Mailbox, Attachment } from '../types';
 import { getMessageContent, downloadAttachment } from '../services/mailService';
-import { ArrowLeft, Trash2, Download, Code, Eye, Printer, Volume2, StopCircle, Paperclip, RefreshCw, FileJson } from 'lucide-react';
+import { ArrowLeft, Trash2, Download, Code, Eye, Printer, Volume2, StopCircle, Paperclip, RefreshCw, FileJson, BookOpen, ShieldAlert } from 'lucide-react';
 
 interface EmailViewProps {
   id: string;
@@ -13,7 +13,7 @@ interface EmailViewProps {
 const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) => {
   const [email, setEmail] = useState<FullMailMessage | null>(null);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'visual' | 'source'>('visual');
+  const [viewMode, setViewMode] = useState<'visual' | 'source' | 'reader'>('visual');
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [downloadingAttId, setDownloadingAttId] = useState<string | null>(null);
@@ -171,6 +171,9 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
 
   // Determine content to show
   const content = email.html && email.html.length > 0 ? email.html[0] : email.text;
+  
+  // Strip HTML for reader mode using DOMParser
+  const plainText = new DOMParser().parseFromString(content, 'text/html').body.textContent || email.text;
 
   return (
     <div className="flex flex-col h-full items-start animate-fade-in-up w-full max-w-full">
@@ -197,22 +200,27 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
               >
                 {isSpeaking ? <StopCircle className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
               </button>
+              
               <button 
-                onClick={handlePrint}
-                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors hidden sm:block" 
-                title="Print Email"
+                onClick={() => setViewMode(viewMode === 'reader' ? 'visual' : 'reader')}
+                className={`p-2 rounded-lg transition-colors flex items-center gap-2 text-xs font-medium px-3 ${viewMode === 'reader' ? 'bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-slate-800'}`}
+                title="Secure Reader Mode"
               >
-                <Printer className="w-4 h-4" />
+                <BookOpen className="w-4 h-4" />
+                <span className="hidden sm:inline whitespace-nowrap">Reader Mode</span>
               </button>
+
               <div className="w-px h-6 bg-slate-700 mx-2 self-center hidden sm:block"></div>
+              
               <button 
-                onClick={() => setViewMode(viewMode === 'visual' ? 'source' : 'visual')}
+                onClick={() => setViewMode(viewMode === 'source' ? 'visual' : 'source')}
                 className={`p-2 rounded-lg transition-colors flex items-center gap-2 text-xs font-medium px-3 ${viewMode === 'source' ? 'bg-brand-500/10 text-brand-400' : 'text-slate-400 hover:bg-slate-800'}`}
                 title="Toggle Source View"
               >
-                {viewMode === 'visual' ? <Code className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                <span className="hidden sm:inline whitespace-nowrap">{viewMode === 'visual' ? 'View Source' : 'Visual Preview'}</span>
+                {viewMode === 'visual' || viewMode === 'reader' ? <Code className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                <span className="hidden sm:inline whitespace-nowrap">{viewMode === 'source' ? 'Visual Preview' : 'View Source'}</span>
               </button>
+              
               <div className="w-px h-6 bg-slate-700 mx-2 self-center"></div>
               <button 
                 onClick={handleDownload}
@@ -287,7 +295,7 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
 
         {/* Content Viewer */}
         <div className="flex-1 bg-white relative w-full">
-          {viewMode === 'visual' ? (
+          {viewMode === 'visual' && (
              <iframe
              title="Email Content"
              srcDoc={`
@@ -310,12 +318,28 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
              className="w-full h-full min-h-[500px]"
              sandbox="allow-popups allow-popups-to-escape-sandbox" 
            />
-          ) : (
+          )}
+
+          {viewMode === 'source' && (
             <div className="absolute inset-0 bg-slate-950 p-4 md:p-6 overflow-auto">
               <pre className="text-xs font-mono text-emerald-400 whitespace-pre-wrap font-light leading-relaxed break-all">
                 {content}
               </pre>
             </div>
+          )}
+
+          {viewMode === 'reader' && (
+             <div className="absolute inset-0 bg-slate-50 p-8 overflow-auto">
+                <div className="max-w-2xl mx-auto space-y-6">
+                   <div className="flex items-center gap-2 bg-emerald-100 border border-emerald-200 text-emerald-800 px-4 py-2 rounded-lg text-sm mb-6">
+                      <ShieldAlert className="w-4 h-4" />
+                      <span>Reader Mode Active: HTML, images, and scripts are stripped for safety.</span>
+                   </div>
+                   <div className="prose prose-slate prose-lg text-slate-800 leading-loose whitespace-pre-wrap">
+                     {plainText}
+                   </div>
+                </div>
+             </div>
           )}
         </div>
       </div>

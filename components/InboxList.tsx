@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { MailMessage } from '../types';
-import { Mail, ChevronRight, Clock, Search, X, Filter, RefreshCw, Trash2, CheckCheck, KeyRound, Copy, Square, CheckSquare, EyeOff } from 'lucide-react';
+import { Mail, ChevronRight, Clock, Search, X, Filter, RefreshCw, Trash2, CheckCheck, KeyRound, Copy, Square, CheckSquare, EyeOff, CornerDownLeft } from 'lucide-react';
 
 interface InboxListProps {
   messages: MailMessage[];
@@ -43,10 +43,13 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [focusedIndex, setFocusedIndex] = useState<number>(-1);
+  const listRef = useRef<HTMLDivElement>(null);
 
   // Clear selections when messages change significantly
   useEffect(() => {
     setSelectedIds(new Set());
+    setFocusedIndex(-1);
   }, [messages.length]);
 
   const filteredMessages = useMemo(() => {
@@ -58,6 +61,43 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
       (m.intro && m.intro.toLowerCase().includes(lowerSearch))
     );
   }, [messages, search]);
+
+  // Keyboard Navigation Logic
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in search
+      if (document.activeElement?.tagName === 'INPUT') return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setFocusedIndex(prev => Math.min(prev + 1, filteredMessages.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setFocusedIndex(prev => Math.max(prev - 1, 0));
+      } else if (e.key === 'Enter') {
+        if (focusedIndex >= 0 && filteredMessages[focusedIndex]) {
+          onSelect(filteredMessages[focusedIndex].id);
+        }
+      } else if (e.key === 'x' && focusedIndex >= 0) {
+        // 'x' key to toggle selection of focused item
+        const msg = filteredMessages[focusedIndex];
+        toggleSelection(msg.id);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [filteredMessages, focusedIndex, onSelect]);
+
+  // Scroll focused item into view
+  useEffect(() => {
+    if (focusedIndex >= 0 && listRef.current) {
+      const items = listRef.current.children;
+      if (items[focusedIndex]) {
+        items[focusedIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  }, [focusedIndex]);
 
   const toggleSelection = (id: string) => {
     const newSet = new Set(selectedIds);
@@ -222,10 +262,11 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
       )}
 
       {/* Message List */}
-      <div className="space-y-3 pb-20">
-      {filteredMessages.map((msg) => {
+      <div className="space-y-3 pb-20 outline-none" tabIndex={0} ref={listRef}>
+      {filteredMessages.map((msg, index) => {
         const code = getVerificationCode(msg);
         const isSelected = selectedIds.has(msg.id);
+        const isFocused = index === focusedIndex;
         
         return (
           <div
@@ -233,6 +274,10 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
             className={`
               group relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 
               border 
+              ${isFocused 
+                ? 'ring-2 ring-brand-500 ring-offset-2 ring-offset-slate-950 z-10 scale-[1.01]' 
+                : ''
+              }
               ${isSelected 
                 ? 'bg-brand-900/20 border-brand-500/50 translate-x-1' 
                 : 'hover:-translate-y-1 hover:shadow-xl hover:shadow-black/50'
@@ -245,6 +290,7 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
               }
             `}
             onClick={() => onSelect(msg.id)}
+            onMouseEnter={() => setFocusedIndex(index)}
           >
             {/* Click area covers everything except quick actions */}
             <div className="p-3 sm:p-4 flex items-start gap-3 sm:gap-4">
@@ -325,9 +371,9 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
                     {formatRelativeTime(msg.date)}
                  </span>
                  
-                 {/* Hover Action Arrow */}
-                 <div className="w-8 h-8 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 -mr-2 transform translate-x-2 group-hover:translate-x-0 hidden sm:flex">
-                   <ChevronRight className="w-4 h-4 text-brand-400" />
+                 {/* Hover Action Arrow (or Return icon if focused) */}
+                 <div className={`w-8 h-8 flex items-center justify-center transition-all -mr-2 transform ${isFocused ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0'} hidden sm:flex`}>
+                   {isFocused ? <CornerDownLeft className="w-4 h-4 text-brand-400" /> : <ChevronRight className="w-4 h-4 text-brand-400" />}
                  </div>
               </div>
             </div>
@@ -359,6 +405,15 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
           </div>
         );
       })}
+      
+      {/* Keyboard Navigation Hint */}
+      {messages.length > 0 && (
+         <div className="text-center text-[10px] text-slate-600 mt-4 flex items-center justify-center gap-3">
+             <span><code className="bg-slate-800 px-1 rounded">↑</code> <code className="bg-slate-800 px-1 rounded">↓</code> to navigate</span>
+             <span><code className="bg-slate-800 px-1 rounded">Enter</code> to open</span>
+             <span><code className="bg-slate-800 px-1 rounded">X</code> to select</span>
+         </div>
+      )}
       </div>
     </div>
   );
