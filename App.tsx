@@ -7,7 +7,8 @@ import EmailView from './components/EmailView';
 import Sidebar from './components/Sidebar';
 import { Shield, Zap, Lock, Bell, CheckCircle, Keyboard, Palette, Moon, Sun, Droplet, Menu, HelpCircle, X, Wifi, WifiOff, Eye, EyeOff, Volume2, VolumeX, Unlock } from 'lucide-react';
 
-const STORAGE_KEY = 'ghostmail_accounts_v2';
+const STORAGE_KEY = 'ghostmail_accounts_v3';
+const ACTIVE_ID_KEY = 'ghostmail_active_id_v3';
 const THEME_KEY = 'ghostmail_theme_v1';
 const AUTO_DELETE_DAYS = 7;
 
@@ -93,9 +94,20 @@ const ShortcutsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
 );
 
 const App: React.FC = () => {
-  // State for multiple accounts
-  const [accounts, setAccounts] = useState<Mailbox[]>([]);
-  const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
+  // State for multiple accounts with safe lazy initialization
+  const [accounts, setAccounts] = useState<Mailbox[]>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      console.error("Failed to parse stored accounts", e);
+      return [];
+    }
+  });
+
+  const [activeAccountId, setActiveAccountId] = useState<string | null>(() => {
+    return localStorage.getItem(ACTIVE_ID_KEY) || null;
+  });
 
   // Derived state for active session
   const activeAccount = accounts.find(a => a.id === activeAccountId) || null;
@@ -120,12 +132,11 @@ const App: React.FC = () => {
 
   // Audio Ref
   const notificationSound = useRef<HTMLAudioElement | null>(null);
-  const initialized = useRef(false);
+  const initializing = useRef(false);
 
   useEffect(() => {
     // Simple beep sound using data URI to avoid external dependencies
-    const audio = new Audio("data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU"); // Placeholder for actual sound or implement web audio api
-    // Let's use a real web audio API beep for better quality without external files
+    const audio = new Audio("data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU"); 
     notificationSound.current = audio; 
 
     const handleOnline = () => setIsOnline(true);
@@ -141,7 +152,6 @@ const App: React.FC = () => {
 
   const playNotificationSound = useCallback(() => {
     if (!soundEnabled) return;
-    // Simple oscillator beep
     try {
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioContext) {
@@ -168,12 +178,19 @@ const App: React.FC = () => {
     setTimeout(() => setToast(null), 3000);
   }, []);
 
-  // Persist accounts
+  // Persist accounts - Always keep storage in sync with state
   useEffect(() => {
-    if (accounts.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
-    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
   }, [accounts]);
+
+  // Persist active account ID
+  useEffect(() => {
+    if (activeAccountId) {
+      localStorage.setItem(ACTIVE_ID_KEY, activeAccountId);
+    } else {
+      localStorage.removeItem(ACTIVE_ID_KEY);
+    }
+  }, [activeAccountId]);
 
   // Request Notification Permission
   useEffect(() => {
@@ -224,28 +241,21 @@ const App: React.FC = () => {
     }
   }, [showToast]);
 
-  // Initial load: Restore from storage or create new
+  // Bootstrap logic: Create account if none exist
   useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
-
-    const storedAccounts = localStorage.getItem(STORAGE_KEY);
-    if (storedAccounts) {
-      try {
-        const parsedAccounts = JSON.parse(storedAccounts);
-        if (Array.isArray(parsedAccounts) && parsedAccounts.length > 0) {
-          setAccounts(parsedAccounts);
-          setActiveAccountId(parsedAccounts[0].id || null);
-          return;
-        }
-      } catch (e) {
-        console.error("Failed to restore session", e);
-        localStorage.removeItem(STORAGE_KEY);
+    if (accounts.length === 0 && !initializing.current) {
+      initializing.current = true;
+      handleAddAccount().finally(() => {
+        initializing.current = false;
+      });
+    } else if (accounts.length > 0) {
+      // Ensure we have a valid active account
+      const exists = accounts.find(a => a.id === activeAccountId);
+      if (!exists) {
+        setActiveAccountId(accounts[0].id || null);
       }
     }
-    // If no accounts, generate one
-    handleAddAccount();
-  }, [handleAddAccount]); 
+  }, [accounts.length, activeAccountId, handleAddAccount]);
 
   // Keyboard Shortcuts
   useEffect(() => {
