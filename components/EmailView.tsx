@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { FullMailMessage, Mailbox, Attachment } from '../types';
 import { getMessageContent, downloadAttachment } from '../services/mailService';
-import { ArrowLeft, Trash2, Download, Code, Eye, Printer, Volume2, StopCircle, Paperclip, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Trash2, Download, Code, Eye, Printer, Volume2, StopCircle, Paperclip, RefreshCw, FileJson } from 'lucide-react';
 
 interface EmailViewProps {
   id: string;
@@ -52,6 +52,17 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
     element.click();
     document.body.removeChild(element);
   };
+
+  const handleDownloadSource = () => {
+    if (!email) return;
+    const element = document.createElement("a");
+    const file = new Blob([JSON.stringify(email, null, 2)], {type: 'application/json'});
+    element.href = URL.createObjectURL(file);
+    element.download = `${email.subject.replace(/[^a-z0-9]/gi, '_').substring(0, 50) || 'email'}.json`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  }
 
   const handleAttachmentDownload = async (att: Attachment) => {
     setDownloadingAttId(att.id);
@@ -209,6 +220,13 @@ const EmailView: React.FC<EmailViewProps> = ({ id, mailbox, onBack, onDelete }) 
                 title="Download HTML"
               >
                 <Download className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={handleDownloadSource}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors" 
+                title="Download Source JSON"
+              >
+                <FileJson className="w-4 h-4" />
               </button>
               <button 
                 onClick={handleDelete}

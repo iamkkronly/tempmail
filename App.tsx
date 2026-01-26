@@ -1,12 +1,11 @@
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Mailbox, MailMessage, AppView, AccountDetails, ThemeOption } from './types';
 import { createAccount, getMessages, deleteMessage, markMessageSeen, getAccountDetails } from './services/mailService';
 import AddressBar from './components/AddressBar';
 import InboxList from './components/InboxList';
 import EmailView from './components/EmailView';
 import Sidebar from './components/Sidebar';
-import { Shield, Zap, Lock, Bell, CheckCircle, Keyboard, Palette, Moon, Sun, Droplet, Menu, HelpCircle, X } from 'lucide-react';
+import { Shield, Zap, Lock, Bell, CheckCircle, Keyboard, Palette, Moon, Sun, Droplet, Menu, HelpCircle, X, Wifi, WifiOff, Eye, EyeOff, Volume2, VolumeX } from 'lucide-react';
 
 const STORAGE_KEY = 'ghostmail_accounts_v2';
 const THEME_KEY = 'ghostmail_theme_v1';
@@ -77,8 +76,8 @@ const ShortcutsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
             <span className="px-2 py-1 bg-slate-800 rounded-lg text-xs font-mono text-slate-400 border border-slate-700">Esc</span>
          </div>
          <div className="flex justify-between items-center">
-            <span className="text-slate-300 text-sm">Show Shortcuts</span>
-            <span className="px-2 py-1 bg-slate-800 rounded-lg text-xs font-mono text-slate-400 border border-slate-700">?</span>
+            <span className="text-slate-300 text-sm">Toggle Privacy Mode</span>
+            <span className="px-2 py-1 bg-slate-800 rounded-lg text-xs font-mono text-slate-400 border border-slate-700">P</span>
          </div>
          <div className="flex justify-between items-center">
             <span className="text-slate-300 text-sm">Focus Search</span>
@@ -108,6 +107,54 @@ const App: React.FC = () => {
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  
+  // Advanced Features State
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [privacyMode, setPrivacyMode] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  // Audio Ref
+  const notificationSound = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    // Simple beep sound using data URI to avoid external dependencies
+    const audio = new Audio("data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU"); // Placeholder for actual sound or implement web audio api
+    // Let's use a real web audio API beep for better quality without external files
+    notificationSound.current = audio; 
+
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const playNotificationSound = useCallback(() => {
+    if (!soundEnabled) return;
+    // Simple oscillator beep
+    try {
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioContext) {
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.setValueAtTime(800, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.1);
+      }
+    } catch (e) {
+      console.error("Audio play failed", e);
+    }
+  }, [soundEnabled]);
 
   // Show Toast
   const showToast = useCallback((message: string, type: 'success' | 'info' | 'error' = 'success') => {
@@ -172,6 +219,13 @@ const App: React.FC = () => {
       if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return;
 
       if (e.key === '?') setShowShortcuts(prev => !prev);
+      if (e.key.toLowerCase() === 'p') {
+          setPrivacyMode(prev => {
+             const newVal = !prev;
+             showToast(`Privacy Mode ${newVal ? 'Enabled' : 'Disabled'}`, 'info');
+             return newVal;
+          });
+      }
       
       if (e.key === 'Escape') {
         if (view === AppView.EMAIL_DETAIL) {
@@ -192,7 +246,7 @@ const App: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [view]);
+  }, [view, showToast]);
 
   // Create a new account
   const handleAddAccount = useCallback(async (customUser?: string, customDomain?: string) => {
@@ -270,7 +324,7 @@ const App: React.FC = () => {
   };
 
   const fetchMailData = useCallback(async () => {
-    if (!activeAccount) return;
+    if (!activeAccount || !isOnline) return;
     
     const rawMsgs = await getMessages(activeAccount.token);
     
@@ -303,7 +357,8 @@ const App: React.FC = () => {
          if (newMsgs.length > 0) {
            const latest = newMsgs[0];
            showToast(`${newMsgs.length} new message${newMsgs.length > 1 ? 's' : ''}`, 'info');
-           
+           playNotificationSound();
+
            if (document.hidden && Notification.permission === 'granted') {
              new Notification('New GhostMail', {
                body: `From: ${latest.from}\n${latest.subject}`,
@@ -317,7 +372,7 @@ const App: React.FC = () => {
 
     const info = await getAccountDetails(activeAccount.token);
     if (info) setAccountInfo(info);
-  }, [activeAccount, showToast]);
+  }, [activeAccount, isOnline, showToast, playNotificationSound]);
 
   useEffect(() => {
     if (!activeAccount) return;
@@ -457,7 +512,31 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-2 sm:gap-4">
-             {/* Status Icons */}
+            
+            {/* Status Indicators */}
+            <div className="hidden sm:flex items-center bg-slate-800/50 rounded-lg p-1 border border-slate-700/50 mr-2">
+              <button 
+                onClick={() => setPrivacyMode(!privacyMode)}
+                className={`p-1.5 rounded-md transition-all ${privacyMode ? 'bg-brand-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                title={privacyMode ? "Privacy Mode On" : "Privacy Mode Off"}
+              >
+                {privacyMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+              <button 
+                onClick={() => setSoundEnabled(!soundEnabled)}
+                className={`p-1.5 rounded-md transition-all ${!soundEnabled ? 'text-slate-500' : 'text-slate-300 hover:text-white'}`}
+                title={soundEnabled ? "Sound On" : "Sound Off"}
+              >
+                {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+              </button>
+              <div className="w-px h-4 bg-slate-700 mx-1"></div>
+              <div className="px-2 flex items-center gap-1.5 text-xs font-mono">
+                {isOnline ? <Wifi className="w-3 h-3 text-emerald-400" /> : <WifiOff className="w-3 h-3 text-red-400" />}
+                <span className={isOnline ? 'text-emerald-400' : 'text-red-400'}>{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
+              </div>
+            </div>
+
+             {/* Tech Badges */}
             <div className="hidden lg:flex items-center space-x-6 text-xs font-medium text-slate-500 mr-4">
               <div className="flex items-center space-x-1.5" title="Encrypted">
                 <Shield className="w-3.5 h-3.5 text-emerald-500" /> <span>Secure</span>
@@ -545,6 +624,7 @@ const App: React.FC = () => {
                  onMarkSeen={handleMarkSeen}
                  onBulkDelete={handleBulkDelete}
                  onBulkMarkSeen={handleBulkMarkSeen}
+                 privacyMode={privacyMode}
                />
             ) : (
               activeAccount && selectedEmailId && (
@@ -560,7 +640,7 @@ const App: React.FC = () => {
 
           {/* Footer inside scroll area */}
           <footer className="pt-8 pb-4 text-center text-slate-600 text-xs">
-              <p>© {new Date().getFullYear()} GhostMail AI. End-to-end encrypted temporary email.</p>
+              <p>© {new Date().getFullYear()} GhostMail. End-to-end encrypted temporary email.</p>
           </footer>
 
         </main>

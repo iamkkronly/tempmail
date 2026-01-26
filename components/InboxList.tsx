@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { MailMessage } from '../types';
-import { Mail, ChevronRight, Clock, Search, X, Filter, RefreshCw, Trash2, CheckCheck, KeyRound, Copy, Square, CheckSquare } from 'lucide-react';
+import { Mail, ChevronRight, Clock, Search, X, Filter, RefreshCw, Trash2, CheckCheck, KeyRound, Copy, Square, CheckSquare, EyeOff } from 'lucide-react';
 
 interface InboxListProps {
   messages: MailMessage[];
@@ -11,9 +11,10 @@ interface InboxListProps {
   onMarkSeen: (id: string) => void;
   onBulkDelete?: (ids: string[]) => void;
   onBulkMarkSeen?: (ids: string[]) => void;
+  privacyMode?: boolean;
 }
 
-const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRefresh, onDelete, onMarkSeen, onBulkDelete, onBulkMarkSeen }) => {
+const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRefresh, onDelete, onMarkSeen, onBulkDelete, onBulkMarkSeen, privacyMode = false }) => {
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -245,8 +246,13 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
                   {msg.from.charAt(0).toUpperCase()}
                 </div>
                 
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 mb-0.5">
+                <div className="min-w-0 flex-1 relative">
+                   {privacyMode && (
+                     <div className="absolute inset-0 z-10 bg-slate-800/10 backdrop-blur-sm rounded flex items-center pl-2">
+                        <EyeOff className="w-4 h-4 text-slate-500" />
+                     </div>
+                   )}
+                  <div className={`flex items-center gap-2 mb-0.5 ${privacyMode ? 'opacity-20' : ''}`}>
                     <p className={`text-sm truncate transition-colors ${!msg.seen ? 'text-white font-bold' : 'text-slate-300 font-medium'}`}>
                       {msg.from}
                     </p>
@@ -258,7 +264,7 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
                     )}
                   </div>
                   
-                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <div className={`flex flex-wrap items-center gap-2 mb-1 ${privacyMode ? 'opacity-20' : ''}`}>
                     <p className={`text-sm truncate ${!msg.seen ? 'text-slate-100 font-semibold' : 'text-slate-400'}`}>
                       {msg.subject || '(No Subject)'}
                     </p>
@@ -281,7 +287,7 @@ const InboxList: React.FC<InboxListProps> = ({ messages, onSelect, loading, onRe
                     )}
                   </div>
 
-                  <p className="text-xs text-slate-500 truncate font-light group-hover:text-slate-400 transition-colors">
+                  <p className={`text-xs text-slate-500 truncate font-light group-hover:text-slate-400 transition-colors ${privacyMode ? 'opacity-20' : ''}`}>
                     {msg.intro || 'No preview available...'}
                   </p>
                 </div>
